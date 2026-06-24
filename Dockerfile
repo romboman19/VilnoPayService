@@ -12,6 +12,10 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 COPY app.py db.py templates.py schema.sql admin.html ./
 
 RUN chown -R appuser:appuser /app
+
+# Створити writable директорію для статики (logo)
+RUN mkdir -p /data/static && chown -R appuser:appuser /data
+
 USER appuser
 
 EXPOSE 8000

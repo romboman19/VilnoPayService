@@ -82,7 +82,10 @@ if "*" not in ALLOWED_HOSTS:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
 static_dir = Path("/data/static")
-static_dir.mkdir(parents=True, exist_ok=True)
+try:
+    static_dir.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass  # Директорія створена в Dockerfile
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 
@@ -294,7 +297,7 @@ def admin_get_settings(request: Request):
 @app.put("/admin/settings")
 def admin_update_settings(request: Request, body: SettingsUpdate):
     _require_admin(request)
-    allowed = {"logo_filename","logo_url","bg_color","primary_color","accent_color",
+    allowed = {"logo_filename","bg_color","primary_color","accent_color",
                "text_color","card_color","border_color","font_family","font_size",
                "page_title","page_subtitle","footer_text","link_ttl_hours","custom_css"}
     filtered = {k: v for k, v in body.settings.items() if k in allowed}

@@ -110,7 +110,6 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div class="upload-hint">Натисніть щоб завантажити (PNG, JPG, SVG, WebP — до 2MB)</div>
 <input type="file" id="logo-file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
 </div></div>
-<div class="fg"><label>Або URL логотипу</label><input id="s-logo_url" placeholder="https://... (опціонально)"></div>
 
 <div class="fg"><label>Колір фону сторінки</label>
 <div class="color-field">
@@ -281,7 +280,7 @@ async function delRcv(key){
 async function loadBrand(){
   try{
     const s=await api('GET','/admin/settings');
-    const keys=['logo_filename','logo_url','bg_color','primary_color','accent_color','text_color','card_color','border_color','font_family','font_size','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
+    const keys=['logo_filename','bg_color','primary_color','accent_color','text_color','card_color','border_color','font_family','font_size','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
     for(const k of keys){
       const el=E('s-'+k);
       if(el&&s[k]!==undefined){
@@ -293,7 +292,7 @@ async function loadBrand(){
   }catch(e){}
 }
 async function saveBrand(){
-  const keys=['logo_filename','logo_url','bg_color','primary_color','accent_color','text_color','card_color','border_color','font_family','font_size','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
+  const keys=['logo_filename','bg_color','primary_color','accent_color','text_color','card_color','border_color','font_family','font_size','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
   const settings={};for(const k of keys){
     const el=E('s-'+k);if(el)settings[k]=el.value;
   }
