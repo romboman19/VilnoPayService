@@ -5,7 +5,9 @@ RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuse
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    apt-get update && apt-get install -y --no-install-recommends fonts-dejavu && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY app.py db.py templates.py schema.sql admin.html ./
 

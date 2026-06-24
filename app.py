@@ -119,7 +119,41 @@ def generate_qr_png_bytes(url):
     qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=10, border=4)
     qr.add_data(url); qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
+    # Додаємо знак гривні ₴ у фоновому колі (вимога НБУ №97 для версії 002)
+    img = _add_hryvnia_sign(img)
     buf = io.BytesIO(); img.save(buf, format="PNG"); return buf.getvalue()
+
+def _add_hryvnia_sign(qr_img):
+    """Додає знак ₴ у білому колі в центрі QR-коду (вимога НБУ)."""
+    from PIL import Image, ImageDraw, ImageFont
+    img = qr_img.convert("RGBA")
+    w, h = img.size
+    # Розмір фонового кола ~30% від сторони QR
+    circle_d = int(w * 0.28)
+    # Створюємо overlay
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    # Біле коло
+    cx, cy = w // 2, h // 2
+    draw.ellipse([cx - circle_d // 2, cy - circle_d // 2,
+                  cx + circle_d // 2, cy + circle_d // 2],
+                 fill=(255, 255, 255, 255))
+    img = Image.alpha_composite(img, overlay)
+    # Текст ₴
+    draw = ImageDraw.Draw(img)
+    font_size = int(circle_d * 0.55)
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+    except (IOError, OSError):
+        font = ImageFont.load_default()
+    # Центруємо текст
+    text = "\u20b4"  # знак гривні
+    bbox = draw.textbbox((0, 0), text, font=font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    tx = cx - tw // 2 - bbox[0]
+    ty = cy - th // 2 - bbox[1]
+    draw.text((tx, ty), text, fill=(0, 0, 0, 255), font=font)
+    return img.convert("RGB")
 
 def _validate_link_id(lid):
     if not re.match(r"^[A-Za-z0-9_-]{8,32}$", lid):
@@ -175,7 +209,7 @@ class ReceiverCreate(BaseModel):
     @classmethod
     def val_rcv(cls, v):
         v = v.strip()
-        if len(v) < 2 or len(v) > 200: raise ValueError("Отримувач: 2-200 символів")
+        if len(v) < 2 or len(v) > 140: raise ValueError("Отримувач: 2-140 символів")
         return v
     @field_validator("edrpou")
     @classmethod
