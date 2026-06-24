@@ -465,7 +465,7 @@ def admin_preview(request: Request):
     _require_admin(request)
     settings = get_settings()
     logo_fn = settings.get("logo_filename", "")
-    logo_url = f"/static/{logo_fn}" if logo_fn else settings.get("logo_url", "")
+    logo_url = f"/static/{logo_fn}" if logo_fn else ""
     qr_b64 = base64.b64encode(generate_qr_png_bytes("https://bank.gov.ua/qr/test")).decode("ascii")
     return HTMLResponse(content=pay_page_html(
         "https://bank.gov.ua/qr/test",
@@ -561,7 +561,8 @@ def pay_page(request: Request, link_id: str):
 
     # Логотип
     logo_fn = settings.get("logo_filename", "")
-    logo_url = f"/static/{logo_fn}" if logo_fn else settings.get("logo_url", "")
+    logo_url = f"/static/{logo_fn}" if logo_fn else ""
+    logger.info("LOGO_CHECK fn=%s url=%s file_exists=%s", logo_fn, logo_url, (static_dir / logo_fn).exists() if logo_fn else False)
 
     return HTMLResponse(content=pay_page_html(
         nbu_url, data["receiver"], data["iban"], data["purpose"],
