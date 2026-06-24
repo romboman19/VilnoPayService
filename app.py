@@ -7,7 +7,10 @@ from fastapi.responses import StreamingResponse, HTMLResponse
 from pydantic import BaseModel
 
 app = FastAPI(title="VilnoPayService", version="1.0.0")
+
 API_KEY = os.getenv("API_KEY", "")
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+
 
 class QRRequest(BaseModel):
     receiver: str
@@ -16,10 +19,12 @@ class QRRequest(BaseModel):
     purpose: str
     amount: str | None = None
 
+
 class QRResponse(BaseModel):
     url: str
     pay_url: str
     qr_base64: str
+
 
 def build_open_data(receiver, iban, code, purpose, amount):
     iban = iban.replace(" ", "").strip()
@@ -31,10 +36,12 @@ def build_open_data(receiver, iban, code, purpose, amount):
     ]
     return "\n".join(lines) + "\n"
 
+
 def to_nbu_url(open_data):
     raw = open_data.encode("cp1251", errors="strict")
     token = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
     return f"https://bank.gov.ua/qr/{token}", token
+
 
 def generate_qr_png_bytes(url):
     qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=12, border=4)
@@ -45,13 +52,16 @@ def generate_qr_png_bytes(url):
     img.save(buf, format="PNG")
     return buf.getvalue()
 
+
 def _check_key(request_key):
     if API_KEY and request_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "VilnoPayService"}
+
 
 @app.post("/generate", response_model=QRResponse)
 def generate(req: QRRequest, api_key: str | None = None):
@@ -59,12 +69,13 @@ def generate(req: QRRequest, api_key: str | None = None):
     try:
         open_data = build_open_data(req.receiver, req.iban, req.code, req.purpose, req.amount)
         nbu_url, token = to_nbu_url(open_data)
-        pay_url = f"https://pay.hunter.rv.ua/p/{token}"
+        pay_url = f"{BASE_URL}/p/{token}"
         png_bytes = generate_qr_png_bytes(pay_url)
         qr_b64 = base64.b64encode(png_bytes).decode("ascii")
         return QRResponse(url=nbu_url, pay_url=pay_url, qr_base64=qr_b64)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/qr.png")
 def qr_png(receiver: str, iban: str, code: str, purpose: str, amount: str | None = None, api_key: str | None = None):
@@ -72,11 +83,12 @@ def qr_png(receiver: str, iban: str, code: str, purpose: str, amount: str | None
     try:
         open_data = build_open_data(receiver, iban, code, purpose, amount)
         _, token = to_nbu_url(open_data)
-        pay_url = f"https://pay.hunter.rv.ua/p/{token}"
+        pay_url = f"{BASE_URL}/p/{token}"
         png_bytes = generate_qr_png_bytes(pay_url)
         return StreamingResponse(io.BytesIO(png_bytes), media_type="image/png")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/p/{token}", response_class=HTMLResponse)
 def pay_page(token: str):
@@ -126,7 +138,7 @@ def pay_page(token: str):
   </div>
   <hr class="divider">
   <a class="other-btn" href="{nbu_url}">Інший банк</a>
-  <div class="footer">VilnoPayService · Захищено стандартом НБУ</div>
+  <div class="footer">VilnoPayService</div>
 </div>
 </body>
 </html>"""
