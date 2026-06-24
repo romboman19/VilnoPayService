@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VilnoPay — Адмін-панель</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#f1f5f9;--card:#fff;--blue:#2563eb;--blue-dk:#1d4ed8;--red:#ef4444;--green:#16a34a;
+--text:#0f172a;--muted:#64748b;--border:#e2e8f0;--r:12px;--sh:0 1px 3px rgba(0,0,0,.08)}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.login-card{background:var(--card);border-radius:var(--r);padding:40px 32px;max-width:380px;width:100%;box-shadow:var(--sh)}
+.login-card h1{font-size:24px;margin-bottom:24px;text-align:center}
+.fg{margin-bottom:16px}.fg label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.fg input,.fg textarea,.fg select{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;outline:none;transition:border .15s}
+.fg input:focus,.fg textarea:focus{border-color:var(--blue)}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.btn-blue{background:var(--blue);color:#fff}.btn-blue:hover{background:var(--blue-dk)}
+.btn-red{background:var(--red);color:#fff}.btn-red:hover{filter:brightness(.9)}
+.btn-green{background:var(--green);color:#fff}
+.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text)}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-block{width:100%}
+.err{color:var(--red);font-size:13px;margin-top:8px}
+.dashboard{display:none}
+.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.topbar h1{font-size:18px}
+.container{max-width:960px;margin:0 auto;padding:24px 16px}
+.tabs{display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap}
+.tab{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--card);color:var(--muted);transition:all .15s}
+.tab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.panel{display:none}.panel.active{display:block}
+.card{background:var(--card);border-radius:var(--r);padding:20px;box-shadow:var(--sh);margin-bottom:16px;border:1px solid var(--border)}
+.card h2{font-size:16px;margin-bottom:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)}
+th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+.mono{font-family:"SF Mono",monospace;font-size:12px}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+.badge-g{background:#f0fdf4;color:#16a34a}.badge-r{background:#fef2f2;color:#ef4444}
+.key-box{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:12px;margin:12px 0;font-family:monospace;font-size:13px;word-break:break-all}
+.mt{margin-top:12px}.flex{display:flex;gap:8px;align-items:center}
+.toast{position:fixed;bottom:24px;right:24px;background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;transform:translateY(10px);transition:all .3s;z-index:999}
+.toast.show{opacity:1;transform:none}
+.resp-table{overflow-x:auto}
+</style>
+</head>
+<body>
+
+<div class="login-wrap" id="sec-login">
+<div class="login-card">
+<h1>VilnoPay Admin</h1>
+<div class="fg"><label>Логін</label><input type="text" id="l-user" autocomplete="username"></div>
+<div class="fg"><label>Пароль</label><input type="password" id="l-pass" autocomplete="current-password"></div>
+<div class="err" id="l-err"></div>
+<button class="btn btn-blue btn-block mt" onclick="doLogin()">Увійти</button>
+</div>
+</div>
+
+<div class="dashboard" id="sec-dash">
+<div class="topbar">
+<h1>VilnoPay Admin</h1>
+<div class="flex"><span id="adm-name" style="color:var(--muted);font-size:14px"></span>
+<button class="btn btn-outline btn-sm" onclick="doLogout()">Вийти</button></div>
+</div>
+<div class="container">
+<div class="tabs" id="tabs">
+<div class="tab active" data-t="rcv">Отримувачі</div>
+<div class="tab" data-t="brand">Брендинг</div>
+<div class="tab" data-t="keys">API ключі</div>
+<div class="tab" data-t="log">Лог</div>
+</div>
+
+<div class="panel active" id="p-rcv">
+<div class="card"><h2>Отримувачі платежів</h2><div id="rcv-tbl"></div>
+<button class="btn btn-blue mt" onclick="showRcvForm()">+ Додати</button></div>
+<div class="card" id="rcv-form" style="display:none">
+<h2 id="rcv-form-t">Новий отримувач</h2>
+<input type="hidden" id="rcv-ek">
+<div class="fg"><label>Назва</label><input id="rcv-n" placeholder="Основний рахунок"></div>
+<div class="fg"><label>Отримувач</label><input id="rcv-r" placeholder="ФОП Іванов І.І."></div>
+<div class="fg"><label>IBAN</label><input id="rcv-i" placeholder="UA..." class="mono"></div>
+<div class="fg"><label>ЄДРПОУ</label><input id="rcv-e" placeholder="12345678"></div>
+<div class="err" id="rcv-err"></div>
+<div class="flex mt"><button class="btn btn-green" onclick="saveRcv()">Зберегти</button>
+<button class="btn btn-outline" onclick="hideRcvForm()">Скасувати</button></div>
+</div>
+</div>
+
+<div class="panel" id="p-brand">
+<div class="card"><h2>Брендинг</h2>
+<div class="fg"><label>URL логотипу</label><input id="s-logo_url" placeholder="https://..."></div>
+<div class="fg"><label>Колір фону</label><input id="s-bg_color" type="color" value="#f1f5f9"></div>
+<div class="fg"><label>Основний колір</label><input id="s-primary_color" type="color" value="#2563eb"></div>
+<div class="fg"><label>Акцентний колір</label><input id="s-accent_color" type="color" value="#16a34a"></div>
+<div class="fg"><label>Заголовок</label><input id="s-page_title" placeholder="VilnoPay"></div>
+<div class="fg"><label>Підзаголовок</label><input id="s-page_subtitle"></div>
+<div class="fg"><label>Футер</label><input id="s-footer_text"></div>
+<div class="fg"><label>TTL посилань (год)</label><input id="s-link_ttl_hours" type="number" min="1" max="720"></div>
+<div class="fg"><label>CSS</label><textarea id="s-custom_css" rows="3"></textarea></div>
+<button class="btn btn-blue mt" onclick="saveBrand()">Зберегти</button>
+</div>
+</div>
+
+<div class="panel" id="p-keys">
+<div class="card"><h2>API ключі</h2><div id="keys-tbl"></div>
+<div class="flex mt"><input id="ak-lbl" placeholder="Назва ключа" style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px">
+<button class="btn btn-blue" onclick="createKey()">Створити</button></div>
+<div class="key-box" id="new-key" style="display:none"></div>
+</div>
+</div>
+
+<div class="panel" id="p-log">
+<div class="card"><h2>Лог посилань</h2><div id="log-tbl"></div></div>
+</div>
+
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const E=id=>document.getElementById(id);
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function toast(m){const t=E('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+async function api(method,url,body){
+  const o={method,headers:{'Content-Type':'application/json'},credentials:'same-origin'};
+  if(body)o.body=JSON.stringify(body);
+  const r=await fetch(url,o);
+  if(r.status===401&&!url.includes('/login')){showLogin();throw new Error('Session expired');}
+  const d=await r.json();if(!r.ok)throw new Error(d.detail||'Помилка');return d;
+}
+
+// AUTH
+async function doLogin(){
+  const u=E('l-user').value.trim(),p=E('l-pass').value;
+  try{E('l-err').textContent='';const r=await api('POST','/admin/login',{username:u,password:p});showDash(r.username);}
+  catch(e){E('l-err').textContent=e.message;}
+}
+async function doLogout(){try{await api('POST','/admin/logout');}catch(e){}showLogin();}
+function showLogin(){E('sec-login').style.display='flex';E('sec-dash').style.display='none';}
+function showDash(name){E('sec-login').style.display='none';E('sec-dash').style.display='block';E('adm-name').textContent=name;loadAll();}
+
+// TABS
+E('tabs').addEventListener('click',e=>{
+  const t=e.target.closest('.tab');if(!t)return;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');E('p-'+t.dataset.t).classList.add('active');
+});
+
+function loadAll(){loadRcv();loadBrand();loadKeys();loadLog();}
+
+// RECEIVERS
+async function loadRcv(){
+  try{
+    const rows=await api('GET','/admin/receivers');const el=E('rcv-tbl');
+    if(!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає отримувачів</p>';return;}
+    let h='<div class="resp-table"><table><thead><tr><th>Ключ</th><th>Назва</th><th>Отримувач</th><th>IBAN</th><th>ЄДРПОУ</th><th>Статус</th><th></th></tr></thead><tbody>';
+    for(const r of rows){
+      const b=r.is_active?'<span class="badge badge-g">Активний</span>':'<span class="badge badge-r">Вимкнено</span>';
+      h+=`<tr><td class="mono">${esc(r.receiver_key)}</td><td>${esc(r.name)}</td><td>${esc(r.receiver)}</td><td class="mono">${esc(r.iban)}</td><td>${esc(r.edrpou)}</td><td>${b}</td><td><button class="btn btn-outline btn-sm" onclick="editRcv('${esc(r.receiver_key)}')">✏️</button> <button class="btn btn-red btn-sm" onclick="delRcv('${esc(r.receiver_key)}')">🗑</button></td></tr>`;
+    }
+    h+='</tbody></table></div>';el.innerHTML=h;
+  }catch(e){toast('Помилка: '+e.message);}
+}
+function showRcvForm(){E('rcv-form').style.display='block';E('rcv-form-t').textContent='Новий отримувач';E('rcv-ek').value='';E('rcv-n').value='';E('rcv-r').value='';E('rcv-i').value='';E('rcv-e').value='';E('rcv-err').textContent='';}
+function hideRcvForm(){E('rcv-form').style.display='none';}
+async function editRcv(key){
+  const rows=await api('GET','/admin/receivers');const r=rows.find(x=>x.receiver_key===key);if(!r)return;
+  E('rcv-form').style.display='block';E('rcv-form-t').textContent='Редагувати: '+r.name;
+  E('rcv-ek').value=key;E('rcv-n').value=r.name;E('rcv-r').value=r.receiver;E('rcv-i').value=r.iban;E('rcv-e').value=r.edrpou;
+}
+async function saveRcv(){
+  const key=E('rcv-ek').value,body={name:E('rcv-n').value,receiver:E('rcv-r').value,iban:E('rcv-i').value,edrpou:E('rcv-e').value};
+  try{
+    E('rcv-err').textContent='';
+    if(key){body.is_active=true;await api('PUT','/admin/receivers/'+key,body);toast('Оновлено');}
+    else{await api('POST','/admin/receivers',body);toast('Створено');}
+    hideRcvForm();loadRcv();
+  }catch(e){E('rcv-err').textContent=e.message;}
+}
+async function delRcv(key){
+  if(!confirm('Видалити отримувача '+key+'?'))return;
+  try{await api('DELETE','/admin/receivers/'+key);toast('Видалено');loadRcv();}catch(e){toast('Помилка: '+e.message);}
+}
+
+// BRANDING
+async function loadBrand(){
+  try{
+    const s=await api('GET','/admin/settings');
+    const keys=['logo_url','bg_color','primary_color','accent_color','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
+    for(const k of keys){const el=E('s-'+k);if(el&&s[k]!==undefined){if(el.type==='color')el.value=s[k]||el.value;else el.value=s[k];}}
+  }catch(e){}
+}
+async function saveBrand(){
+  const keys=['logo_url','bg_color','primary_color','accent_color','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
+  const settings={};for(const k of keys){settings[k]=E('s-'+k).value;}
+  try{await api('PUT','/admin/settings',{settings});toast('Збережено');}catch(e){toast('Помилка: '+e.message);}
+}
+
+// API KEYS
+async function loadKeys(){
+  try{
+    const rows=await api('GET','/admin/api-keys');const el=E('keys-tbl');
+    if(!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає ключів</p>';return;}
+    let h='<table><thead><tr><th>Префікс</th><th>Назва</th><th>Статус</th><th>Останнє використання</th><th></th></tr></thead><tbody>';
+    for(const r of rows){
+      const b=r.is_active?'<span class="badge badge-g">Активний</span>':'<span class="badge badge-r">Відкликано</span>';
+      h+=`<tr><td class="mono">${esc(r.key_prefix)}...</td><td>${esc(r.label)}</td><td>${b}</td><td>${r.last_used_at||'—'}</td><td>${r.is_active?'<button class="btn btn-red btn-sm" onclick="revokeKey('+r.id+')">Відкликати</button>':''}</td></tr>`;
+    }
+    h+='</tbody></table>';el.innerHTML=h;
+  }catch(e){toast('Помилка: '+e.message);}
+}
+async function createKey(){
+  const label=E('ak-lbl').value.trim()||'default';
+  try{
+    const r=await api('POST','/admin/api-keys',{label});
+    E('new-key').style.display='block';
+    E('new-key').innerHTML='⚠️ Збережіть ключ — він більше не буде показаний:<br><strong>'+esc(r.key)+'</strong>';
+    E('ak-lbl').value='';toast('Ключ створено');loadKeys();
+  }catch(e){toast('Помилка: '+e.message);}
+}
+async function revokeKey(id){
+  if(!confirm('Відкликати ключ?'))return;
+  try{await api('DELETE','/admin/api-keys/'+id);toast('Відкликано');loadKeys();}catch(e){toast('Помилка: '+e.message);}
+}
+
+// LOG
+async function loadLog(){
+  try{
+    const rows=await api('GET','/admin/links-log');const el=E('log-tbl');
+    if(!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає записів</p>';return;}
+    let h='<div class="resp-table"><table><thead><tr><th>ID</th><th>Отримувач</th><th>Призначення</th><th>Сума</th><th>API ключ</th><th>IP</th><th>Час</th></tr></thead><tbody>';
+    for(const r of rows){
+      h+=`<tr><td class="mono">${esc(r.link_id)}</td><td class="mono">${esc(r.receiver_key)}</td><td>${esc(r.purpose)}</td><td>${esc(r.amount||'—')}</td><td class="mono">${esc(r.api_key_prefix||'—')}</td><td>${esc(r.created_ip||'—')}</td><td>${r.created_at||'—'}</td></tr>`;
+    }
+    h+='</tbody></table></div>';el.innerHTML=h;
+  }catch(e){toast('Помилка: '+e.message);}
+}
+
+// INIT
+(async()=>{
+  try{const r=await api('GET','/admin/me');showDash(r.username);}catch(e){showLogin();}
+})();
+</script>
+</body>
+</html>
