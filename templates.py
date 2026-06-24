@@ -36,7 +36,7 @@ function _okAll(b){b.classList.add('ok');b.textContent='✅ Скопійован
 function _fb(t){var a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';
   document.body.appendChild(a);a.select();document.execCommand('copy');document.body.removeChild(a);}
 
-// Поділитися QR-зображенням через Web Share API
+// Web Share API — оплатити через додаток банку
 async function shareQR(){
   var btn=document.getElementById('share-btn');
   try{
@@ -68,7 +68,7 @@ async function shareQR(){
   }catch(e){
     if(e.name!=='AbortError'){
       trackAction('share_error');
-      showToast('Затисніть QR-зображення → «Поділитися» → оберіть додаток банку');
+      showToast('Збережіть зображення QR → відкрийте додаток банку → відскануйте QR з галереї');
     }
   }finally{
     btn.classList.remove('sharing');
@@ -144,7 +144,7 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;b
 .sec-head{{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}}
 .amount-chip{{display:inline-flex;align-items:center;gap:6px;background:var(--blue-lt);border:1px solid var(--blue-bd);color:var(--blue);font-size:21px;font-weight:800;border-radius:var(--rs);padding:6px 14px;margin-bottom:14px}}
 
-/* Кнопка «Поділитися QR» */
+/* Кнопка «Оплатити через додаток» */
 .share-btn{{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;border-radius:var(--rs);border:none;background:var(--blue);color:#fff;font-size:16px;font-weight:700;cursor:pointer;transition:all var(--t);margin-bottom:12px}}
 .share-btn:active{{transform:scale(.97)}}
 .share-btn.sharing{{opacity:.6}}
@@ -192,13 +192,14 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;b
 <div class="sec-head">Оплата через додаток</div>
 <div class="amount-chip">💳 {amount_line}</div>
 <button class="share-btn" id="share-btn" onclick="shareQR()">
-<span class="share-icon">📤</span> Поділитися QR-кодом
+<span class="share-icon">🏦</span> Оплатити через додаток банку
 </button>
 <div class="hint-box">
 <ol>
-<li><strong>Натисніть кнопку вище</strong> «Поділитися QR-кодом»</li>
-<li><strong>Оберіть додаток банку</strong> у вікні «Поділитися»</li>
-<li>Додаток банку <strong>розпізнає QR</strong> і заповнить реквізити автоматично</li>
+<li><strong>Натисніть кнопку вище</strong> «Оплатити через додаток банку»</li>
+<li><strong>Оберіть додаток вашого банку</strong> у вікні, що з'явиться</li>
+<li>Додаток банку <strong>автоматично розпізнає QR</strong> і заповнить усі реквізити</li>
+<li>Перевірте суму та <strong>підтвердьте платіж</strong></li>
 </ol>
 </div>
 </div>
