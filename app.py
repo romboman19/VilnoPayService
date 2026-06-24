@@ -80,7 +80,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 if "*" not in ALLOWED_HOSTS:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
-static_dir = Path(__file__).parent / "static"
+static_dir = Path("/tmp/static")
 static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
