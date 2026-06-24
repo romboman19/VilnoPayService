@@ -1,0 +1,14 @@
+services:
+  pay-service:
+    build: .
+    container_name: pay-service
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8099:8000"
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
