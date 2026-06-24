@@ -421,22 +421,22 @@ body{{
     <div class="sec-head">Оплата через додаток</div>
     <div class="amount-chip">💳 {amount_line}</div>
     <div class="banks">
-      <a class="bank-btn" href="{nbu_url}" target="_blank" rel="noopener" onclick="addRipple(event)">
+      <a class="bank-btn" href="{nbu_url}" target="_blank" rel="noopener" onclick="return openBank(event,'privatbank')">
         <span class="bank-icon">🟢</span>ПриватБанк
       </a>
-      <a class="bank-btn" href="{nbu_url}" target="_blank" rel="noopener" onclick="addRipple(event)">
+      <a class="bank-btn" href="{nbu_url}" target="_blank" rel="noopener" onclick="return openBank(event,'monobank')">
         <span class="bank-icon">🖤</span>Monobank
       </a>
-      <a class="bank-btn" href="{nbu_url}" target="_blank" rel="noopener" onclick="addRipple(event)">
+      <a class="bank-btn" href="{nbu_url}" target="_blank" rel="noopener" onclick="return openBank(event,'pumb')">
         <span class="bank-icon">🔴</span>ПУМБ
       </a>
-      <a class="bank-btn" href="{nbu_url}" target="_blank" rel="noopener" onclick="addRipple(event)">
+      <a class="bank-btn" href="{nbu_url}" target="_blank" rel="noopener" onclick="return openBank(event,'sense')">
         <span class="bank-icon">🔵</span>Sense Bank
       </a>
-      <a class="bank-btn" href="{nbu_url}" target="_blank" rel="noopener" onclick="addRipple(event)">
+      <a class="bank-btn" href="{nbu_url}" target="_blank" rel="noopener" onclick="return openBank(event,'abank')">
         <span class="bank-icon">🟡</span>А-Банк
       </a>
-      <a class="bank-btn" href="{nbu_url}" target="_blank" rel="noopener" onclick="addRipple(event)">
+      <a class="bank-btn" href="{nbu_url}" target="_blank" rel="noopener" onclick="return openBank(event,'novapay')">
         <span class="bank-icon">🟠</span>NovaPay
       </a>
       <a class="bank-btn bank-wide" href="{nbu_url}" target="_blank" rel="noopener" onclick="addRipple(event)">
@@ -569,6 +569,39 @@ function addRipple(e) {{
   r.style.top  = (e.clientY - rect.top) + 'px';
   btn.appendChild(r);
   r.addEventListener('animationend', () => r.remove());
+}}
+// Відкрити конкретний банк-додаток
+// Спробуємо deep link, якщо не вийшло за 1.5с — fallback на NBU URL
+function openBank(e, bank) {{
+  addRipple(e);
+  // Deep links для кожного банку
+  var deepLinks = {{
+    'privatbank': 'privatbank://',
+    'monobank': 'monobank://',
+    'pumb': 'pumbonline://',
+    'sense': 'sensebank://',
+    'abank': 'abankua://',
+    'novapay': 'novapay://'
+  }};
+  var deep = deepLinks[bank];
+  if (!deep) return true; // fallback на NBU URL
+  
+  var start = Date.now();
+  var iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = deep;
+  document.body.appendChild(iframe);
+  
+  // Якщо додаток не відкрився за 1.5с — йдемо на NBU URL
+  setTimeout(function() {{
+    document.body.removeChild(iframe);
+    if (Date.now() - start < 1600) {{
+      // Додаток не відкрився — відкриваємо NBU URL
+      window.location.href = '{nbu_url}';
+    }}
+  }}, 1500);
+  
+  return false; // не відкриваємо NBU URL одразу
 }}
 </script>
 </body>
