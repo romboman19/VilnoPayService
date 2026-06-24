@@ -161,8 +161,10 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;b
 
 /* QR */
 .qr-wrap{{text-align:center;padding:4px 0 2px}}
-.qr-img{{width:min(260px,85vw);height:min(260px,85vw);border-radius:14px;border:1px solid var(--border);display:block;margin:0 auto;background:#fff}}
+.qr-img{{width:min(260px,85vw);height:min(260px,85vw);border-radius:14px;border:1px solid var(--border);display:block;margin:0 auto;background:#fff;cursor:pointer;transition:transform var(--t)}}
+.qr-img:active{{transform:scale(.95)}}
 .qr-hint{{font-size:12px;color:var(--muted);margin-top:10px}}
+.qr-tap{{font-size:13px;color:var(--blue);font-weight:600;margin-top:6px}}
 
 /* Реквізити */
 .req-row{{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:8px}}
@@ -197,7 +199,6 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;b
 
 <div class="section">
 <div class="sec-head">Спосiб 1 — Оплата через додаток</div>
-<div class="amount-chip">💳 {amount_line}</div>
 <button class="share-btn" id="share-btn" onclick="shareQR()">
 <span class="share-icon">🏦</span> Оплатити через додаток банку
 </button>
@@ -214,8 +215,9 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;b
 <div class="section">
 <div class="sec-head">Спосiб 2 — Сканувати QR-код</div>
 <div class="qr-wrap">
-<img class="qr-img" id="qr-image" src="data:image/png;base64,{qr_b64}" alt="QR код" loading="eager">
+<img class="qr-img" id="qr-image" src="data:image/png;base64,{qr_b64}" alt="QR код" loading="eager" onclick="shareQR()">
 <div class="qr-hint">Відскануйте камерою додатку вашого банку</div>
+<div class="qr-tap">Або натисніть на QR-код, щоб поділитися з додатком банку</div>
 </div>
 </div>
 
