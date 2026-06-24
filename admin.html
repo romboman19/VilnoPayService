@@ -4,44 +4,45 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VilnoPay — Адмін-панель</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#f1f5f9;--card:#fff;--blue:#2563eb;--blue-dk:#1d4ed8;--red:#ef4444;--green:#16a34a;
---text:#0f172a;--muted:#64748b;--border:#e2e8f0;--r:12px;--sh:0 1px 3px rgba(0,0,0,.08)}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+:root{--bg:#F8F9FB;--card:#FFFFFF;--blue:#1D6F42;--blue-dk:#155733;--red:#D92D20;--green:#1D6F42;
+--text:#101828;--muted:#667085;--border:#EAECF0;--r:12px;--sh:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06)}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 .login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
-.login-card{background:var(--card);border-radius:var(--r);padding:40px 32px;max-width:380px;width:100%;box-shadow:var(--sh)}
-.login-card h1{font-size:24px;margin-bottom:24px;text-align:center}
+.login-card{background:var(--card);border-radius:var(--r);padding:40px 32px;max-width:380px;width:100%;box-shadow:var(--sh);border:1px solid var(--border)}
+.login-card h1{font-size:22px;margin-bottom:24px;text-align:center;font-weight:700}
 .fg{margin-bottom:16px}.fg label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
-.fg input,.fg textarea,.fg select{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;outline:none;transition:border .15s}
+.fg input,.fg textarea,.fg select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;transition:border .15s;font-family:inherit}
 .fg input:focus,.fg textarea:focus{border-color:var(--blue)}
-.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .15s;font-family:inherit}
 .btn-blue{background:var(--blue);color:#fff}.btn-blue:hover{background:var(--blue-dk)}
 .btn-red{background:var(--red);color:#fff}.btn-red:hover{filter:brightness(.9)}
 .btn-green{background:var(--green);color:#fff}
-.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text)}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}
 .btn-sm{padding:6px 12px;font-size:12px}
 .btn-block{width:100%}
 .err{color:var(--red);font-size:13px;margin-top:8px}
 .dashboard{display:none}
 .topbar{background:var(--card);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
-.topbar h1{font-size:18px}
+.topbar h1{font-size:18px;font-weight:700}
 .container{max-width:960px;margin:0 auto;padding:24px 16px}
 .tabs{display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap}
-.tab{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--card);color:var(--muted);transition:all .15s}
+.tab{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--muted);transition:all .15s}
 .tab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
 .panel{display:none}.panel.active{display:block}
 .card{background:var(--card);border-radius:var(--r);padding:20px;box-shadow:var(--sh);margin-bottom:16px;border:1px solid var(--border)}
-.card h2{font-size:16px;margin-bottom:16px}
+.card h2{font-size:16px;margin-bottom:16px;font-weight:700}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)}
 th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
 .mono{font-family:"SF Mono",monospace;font-size:12px}
 .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
-.badge-g{background:#f0fdf4;color:#16a34a}.badge-r{background:#fef2f2;color:#ef4444}
-.key-box{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:12px;margin:12px 0;font-family:monospace;font-size:13px;word-break:break-all}
+.badge-g{background:#F0FAF4;color:#1D6F42}.badge-r{background:#FEF3F2;color:#D92D20}
+.key-box{background:#F9FAFB;border:1px solid var(--border);border-radius:8px;padding:12px;margin:12px 0;font-family:monospace;font-size:13px;word-break:break-all}
 .mt{margin-top:12px}.flex{display:flex;gap:8px;align-items:center}
-.toast{position:fixed;bottom:24px;right:24px;background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;transform:translateY(10px);transition:all .3s;z-index:999}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--text);color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;transform:translateY(10px);transition:all .3s;z-index:999}
 .toast.show{opacity:1;transform:none}
 .resp-table{overflow-x:auto}
 .logo-preview{max-height:60px;border-radius:8px;margin-top:8px;border:1px solid var(--border)}
@@ -49,6 +50,13 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 .upload-area:hover{border-color:var(--blue)}
 .upload-area input{display:none}
 .upload-hint{font-size:13px;color:var(--muted);margin-top:6px}
+
+/* Color picker field */
+.color-field{display:flex;align-items:center;gap:8px}
+.color-field input[type="color"]{width:40px;height:36px;border-radius:8px;border:1px solid var(--border);padding:2px;cursor:pointer;background:none}
+.color-preview{width:36px;height:36px;border-radius:8px;border:1px solid var(--border);flex-shrink:0}
+.color-hex{font-family:"SF Mono",monospace;font-size:13px;width:100px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;outline:none}
+.color-hex:focus{border-color:var(--blue)}
 </style>
 </head>
 <body>
@@ -87,7 +95,7 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div class="fg"><label>Назва</label><input id="rcv-n" placeholder="Основний рахунок"></div>
 <div class="fg"><label>Отримувач</label><input id="rcv-r" placeholder="ФОП Іванов І.І."></div>
 <div class="fg"><label>IBAN</label><input id="rcv-i" placeholder="UA..." class="mono"></div>
-<div class="fg"><label>ЄДРПОУ</label><input id="rcv-e" placeholder="12345678"></div>
+<div class="fg"><label>ЄДРПОУ / ІПН</label><input id="rcv-e" placeholder="12345678"></div>
 <div class="err" id="rcv-err"></div>
 <div class="flex mt"><button class="btn btn-green" onclick="saveRcv()">Зберегти</button>
 <button class="btn btn-outline" onclick="hideRcvForm()">Скасувати</button></div>
@@ -101,29 +109,66 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div id="logo-preview-wrap"></div>
 <div class="upload-hint">Натисніть щоб завантажити (PNG, JPG, SVG, WebP — до 2MB)</div>
 <input type="file" id="logo-file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
-</div>
-</div>
+</div></div>
 <div class="fg"><label>Або URL логотипу</label><input id="s-logo_url" placeholder="https://... (опціонально)"></div>
-<div class="fg"><label>Колір фону сторінки</label><input id="s-bg_color" type="color" value="#f1f5f9"></div>
-<div class="fg"><label>Основний колір (кнопки, акценти)</label><input id="s-primary_color" type="color" value="#2563eb"></div>
-<div class="fg"><label>Акцентний колір</label><input id="s-accent_color" type="color" value="#16a34a"></div>
-<div class="fg"><label>Колір тексту</label><input id="s-text_color" type="color" value="#0f172a"></div>
-<div class="fg"><label>Колір блоків/карток</label><input id="s-card_color" type="color" value="#ffffff"></div>
-<div class="fg"><label>Колір межі</label><input id="s-border_color" type="color" value="#e2e8f0"></div>
-<div class="fg"><label>Родина шрифту (CSS)</label><input id="s-font_family" placeholder="напр. Georgia, serif (порожньо = системний)"></div>
-<div class="fg"><label>Розмір шрифту (px)</label><input id="s-font_size" type="number" min="10" max="24" value="14"></div>
+
+<div class="fg"><label>Колір фону сторінки</label>
+<div class="color-field">
+<input type="color" id="s-bg_color" value="#F8F9FB">
+<span class="color-preview" id="prev-bg_color" style="background:#F8F9FB"></span>
+<input type="text" class="color-hex" id="hex-bg_color" value="#F8F9FB" maxlength="7">
+</div></div>
+
+<div class="fg"><label>Основний колір</label>
+<div class="color-field">
+<input type="color" id="s-primary_color" value="#1D6F42">
+<span class="color-preview" id="prev-primary_color" style="background:#1D6F42"></span>
+<input type="text" class="color-hex" id="hex-primary_color" value="#1D6F42" maxlength="7">
+</div></div>
+
+<div class="fg"><label>Акцентний колір</label>
+<div class="color-field">
+<input type="color" id="s-accent_color" value="#1D6F42">
+<span class="color-preview" id="prev-accent_color" style="background:#1D6F42"></span>
+<input type="text" class="color-hex" id="hex-accent_color" value="#1D6F42" maxlength="7">
+</div></div>
+
+<div class="fg"><label>Колір тексту</label>
+<div class="color-field">
+<input type="color" id="s-text_color" value="#101828">
+<span class="color-preview" id="prev-text_color" style="background:#101828"></span>
+<input type="text" class="color-hex" id="hex-text_color" value="#101828" maxlength="7">
+</div></div>
+
+<div class="fg"><label>Колір блоків/карток</label>
+<div class="color-field">
+<input type="color" id="s-card_color" value="#FFFFFF">
+<span class="color-preview" id="prev-card_color" style="background:#FFFFFF"></span>
+<input type="text" class="color-hex" id="hex-card_color" value="#FFFFFF" maxlength="7">
+</div></div>
+
+<div class="fg"><label>Колір межі</label>
+<div class="color-field">
+<input type="color" id="s-border_color" value="#EAECF0">
+<span class="color-preview" id="prev-border_color" style="background:#EAECF0"></span>
+<input type="text" class="color-hex" id="hex-border_color" value="#EAECF0" maxlength="7">
+</div></div>
+
+<div class="fg"><label>Родина шрифту (CSS)</label><input id="s-font_family" placeholder="Inter (порожньо = системний)"></div>
+<div class="fg"><label>Розмір шрифту (px)</label><input id="s-font_size" type="number" min="10" max="24" value="15"></div>
 <div class="fg"><label>Заголовок</label><input id="s-page_title" placeholder="VilnoPay"></div>
 <div class="fg"><label>Підзаголовок</label><input id="s-page_subtitle"></div>
 <div class="fg"><label>Футер</label><input id="s-footer_text"></div>
 <div class="fg"><label>TTL посилань (год)</label><input id="s-link_ttl_hours" type="number" min="1" max="720"></div>
 <div class="fg"><label>CSS</label><textarea id="s-custom_css" rows="3"></textarea></div>
 <button class="btn btn-blue mt" onclick="saveBrand()">Зберегти</button>
+<button class="btn btn-outline mt" style="margin-left:8px" onclick="previewBrand()">Попередній перегляд →</button>
 </div>
 </div>
 
 <div class="panel" id="p-keys">
 <div class="card"><h2>API ключі</h2><div id="keys-tbl"></div>
-<div class="flex mt"><input id="ak-lbl" placeholder="Назва ключа" style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px">
+<div class="flex mt"><input id="ak-lbl" placeholder="Назва ключа" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit">
 <button class="btn btn-blue" onclick="createKey()">Створити</button></div>
 <div class="key-box" id="new-key" style="display:none"></div>
 </div>
@@ -153,6 +198,15 @@ async function api(method,url,body){
   if(r.status===401&&!url.includes('/login')){showLogin();throw new Error('Session expired');}
   const d=await r.json();if(!r.ok)throw new Error(d.detail||'Помилка');return d;
 }
+
+// Color picker sync
+function syncColor(id){
+  const ci=E('s-'+id),hi=E('hex-'+id),pv=E('prev-'+id);
+  if(!ci)return;
+  ci.addEventListener('input',()=>{hi.value=ci.value;if(pv)pv.style.background=ci.value;});
+  if(hi)hi.addEventListener('input',()=>{if(/^#[0-9A-Fa-f]{6}$/.test(hi.value)){ci.value=hi.value;if(pv)pv.style.background=hi.value;}});
+}
+['bg_color','primary_color','accent_color','text_color','card_color','border_color'].forEach(syncColor);
 
 // AUTH
 async function doLogin(){
@@ -226,16 +280,24 @@ async function loadBrand(){
   try{
     const s=await api('GET','/admin/settings');
     const keys=['logo_filename','logo_url','bg_color','primary_color','accent_color','text_color','card_color','border_color','font_family','font_size','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
-    for(const k of keys){const el=E('s-'+k);if(el&&s[k]!==undefined){if(el.type==='color')el.value=s[k]||el.value;else el.value=s[k];}}
-    // Preview logo
+    for(const k of keys){
+      const el=E('s-'+k);
+      if(el&&s[k]!==undefined){
+        if(el.type==='color'){el.value=s[k]||el.value;const hi=E('hex-'+k);const pv=E('prev-'+k);if(hi)hi.value=el.value;if(pv)pv.style.background=el.value;}
+        else el.value=s[k];
+      }
+    }
     if(s.logo_filename){E('logo-preview-wrap').innerHTML='<img src="/static/'+esc(s.logo_filename)+'?t='+Date.now()+'" class="logo-preview" alt="Logo">';}
   }catch(e){}
 }
 async function saveBrand(){
-  const keys=['logo_url','bg_color','primary_color','accent_color','text_color','card_color','border_color','font_family','font_size','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
-  const settings={};for(const k of keys){settings[k]=E('s-'+k).value;}
+  const keys=['logo_filename','logo_url','bg_color','primary_color','accent_color','text_color','card_color','border_color','font_family','font_size','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
+  const settings={};for(const k of keys){
+    const el=E('s-'+k);if(el)settings[k]=el.value;
+  }
   try{await api('PUT','/admin/settings',{settings});toast('Збережено');}catch(e){toast('Помилка: '+e.message);}
 }
+function previewBrand(){window.open('/admin/preview','_blank');}
 
 // API KEYS
 async function loadKeys(){

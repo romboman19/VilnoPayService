@@ -81,8 +81,8 @@ app.add_middleware(SecurityHeadersMiddleware)
 if "*" not in ALLOWED_HOSTS:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
-static_dir = Path("/tmp/static")
-static_dir.mkdir(exist_ok=True)
+static_dir = Path("/data/static")
+static_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 
@@ -455,6 +455,22 @@ def admin_page(request: Request):
     if admin_html_path.exists():
         return HTMLResponse(admin_html_path.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>admin.html not found</h1>", status_code=500)
+
+
+@app.get("/admin/preview", response_class=HTMLResponse)
+def admin_preview(request: Request):
+    _require_admin(request)
+    settings = get_settings()
+    logo_fn = settings.get("logo_filename", "")
+    logo_url = f"/static/{logo_fn}" if logo_fn else settings.get("logo_url", "")
+    qr_b64 = base64.b64encode(generate_qr_png_bytes("https://bank.gov.ua/qr/test")).decode("ascii")
+    return HTMLResponse(content=pay_page_html(
+        "https://bank.gov.ua/qr/test",
+        "ФОП Тестовий Тест Тестович",
+        "UA783052990000026005012107358",
+        "За товар (тестове посилання)",
+        "1 500 ₴", qr_b64, 23, settings, logo_url, "preview", "2262003378"
+    ))
 
 
 # ══════════════════════════════════════════════════════════════
