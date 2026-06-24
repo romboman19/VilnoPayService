@@ -472,7 +472,7 @@ def admin_preview(request: Request):
         "ФОП Тестовий Тест Тестович",
         "UA783052990000026005012107358",
         "За товар (тестове посилання)",
-        "1 500 ₴", qr_b64, 23, settings, logo_url, "preview", "2262003378"
+        "1 500 ₴", qr_b64, 23, settings, logo_url, "preview", "2262003378", 23*3600
     ))
 
 
@@ -544,6 +544,7 @@ def pay_page(request: Request, link_id: str):
     data = json.loads(raw)
     ttl_sec = rdb.ttl(f"pay:{link_id}")
     hours_left = max(1, ttl_sec // 3600)
+    ttl_seconds = ttl_sec
     nbu_url = data["nbu_url"]
     amt = data["amount"]
     amt_line = f"{amt} грн" if amt else "за домовленістю"
@@ -564,5 +565,5 @@ def pay_page(request: Request, link_id: str):
 
     return HTMLResponse(content=pay_page_html(
         nbu_url, data["receiver"], data["iban"], data["purpose"],
-        amt_line, qr_b64, hours_left, settings, logo_url, link_id, data.get("code", "")
+        amt_line, qr_b64, hours_left, settings, logo_url, link_id, data.get("code", ""), ttl_seconds
     ))

@@ -75,8 +75,23 @@ function trackAction(action){fetch('/track/bank-click',{method:'POST',headers:{'
 """
 
 
+TTL_JS = """
+<script>
+function updateTTL(){
+  var el=document.getElementById('ttl-text');if(!el)return;
+  if(TTL_SEC<=0){el.textContent='Посилання неактивне';return;}
+  var h=Math.floor(TTL_SEC/3600);
+  var m=Math.floor((TTL_SEC%3600)/60);
+  el.textContent='Посилання активне ще '+h+' год '+m+' хв';
+  TTL_SEC--;
+}
+updateTTL();setInterval(updateTTL,1000);
+</script>
+"""
+
+
 def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
-                  hours_left, settings=None, logo_url="", link_id="", code=""):
+                  hours_left, settings=None, logo_url="", link_id="", code="", ttl_seconds=0):
     s = settings or {}
     bg, pc, ac, tc, cc_color, bc, ff, fs, cc = _css_vars(s)
     pt = _e(s.get("page_title", "VilnoPay"))
@@ -191,7 +206,7 @@ body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif
 {logo}
 <h1>{pt}</h1>
 <p>{ps}</p>
-<div class="badge-ttl"><span class="dot"></span>Активне ще {hours_left} год.</div>
+<div class="badge-ttl" id="ttl-badge"><span class="dot"></span><span id="ttl-text">Посилання активне</span></div>
 </div>
 
 <div class="amount-block">
@@ -229,7 +244,8 @@ body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif
 <div class="footer">{ft}</div>
 </div>
 <div id="toast"></div>
-<script>var LINK_ID="{link_id}";</script>
+<script>var LINK_ID="{link_id}";var TTL_SEC={ttl_seconds};</script>
+{TTL_JS}
 {COPY_JS}</body></html>"""
 
 
