@@ -61,6 +61,9 @@ def init_db():
             conn.autocommit = True
             conn.close()
 
+    # Міграції для існуючих БД
+    _migrate()
+
     if ADMIN_INIT_PASS:
         existing = pg_query("SELECT id FROM admin_users LIMIT 1", fetchone=True)
         if not existing:
@@ -70,6 +73,31 @@ def init_db():
                 (ADMIN_INIT_USER, pw_hash)
             )
             logger.info("Initial admin '%s' created", ADMIN_INIT_USER)
+
+
+def _migrate():
+    """Міграції для існуючих БД (безпечні, idempotent)."""
+    migrations = [
+        # Додати logo_filename в settings якщо нема
+        "INSERT INTO settings (key, value) VALUES ('logo_filename', '') ON CONFLICT (key) DO NOTHING",
+        # Таблиця переглядів
+        '''CREATE TABLE IF NOT EXISTS page_views_log (
+            id              SERIAL PRIMARY KEY,
+            link_id         VARCHAR(32) NOT NULL,
+            viewer_ip       VARCHAR(45),
+            user_agent      TEXT,
+            device_type     VARCHAR(20),
+            bank_clicked    VARCHAR(30),
+            viewed_at       TIMESTAMPTZ DEFAULT NOW()
+        )''',
+        "CREATE INDEX IF NOT EXISTS idx_page_views_link ON page_views_log(link_id)",
+        "CREATE INDEX IF NOT EXISTS idx_page_views_viewed ON page_views_log(viewed_at)",
+    ]
+    for sql in migrations:
+        try:
+            pg_execute(sql)
+        except Exception as e:
+            logger.warning("Migration skipped: %s — %s", sql[:60], e)
 
 
 # ── Settings ─────────────────────────────────────────────────
@@ -226,11 +254,14 @@ def log_payment_link(link_id, receiver_key, purpose, amount, api_key_prefix, ip)
 # ── Page views log ──────────────────────────────────────────
 
 def log_page_view(link_id, viewer_ip, user_agent, device_type, bank_clicked=None):
-    pg_execute(
-        """INSERT INTO page_views_log (link_id, viewer_ip, user_agent, device_type, bank_clicked)
-           VALUES (%s, %s, %s, %s, %s)""",
-        (link_id, viewer_ip, (user_agent or "")[:500], device_type, bank_clicked)
-    )
+    try:
+        pg_execute(
+            """INSERT INTO page_views_log (link_id, viewer_ip, user_agent, device_type, bank_clicked)
+               VALUES (%s, %s, %s, %s, %s)""",
+            (link_id, viewer_ip, (user_agent or "")[:500], device_type, bank_clicked)
+        )
+    except Exception as e:
+        logging.getLogger("vilnopay.db").warning("log_page_view failed (table missing?): %s", e)
 
 def list_page_views(limit=100):
     return pg_query(
