@@ -8,8 +8,13 @@ def _css_vars(s):
     bg = _h.escape(s.get("bg_color", "#f1f5f9"))
     pc = _h.escape(s.get("primary_color", "#2563eb"))
     ac = _h.escape(s.get("accent_color", "#16a34a"))
+    tc = _h.escape(s.get("text_color", "#0f172a"))
+    cc_color = _h.escape(s.get("card_color", "#ffffff"))
+    bc = _h.escape(s.get("border_color", "#e2e8f0"))
+    ff = _h.escape(s.get("font_family", ""))
+    fs = _h.escape(s.get("font_size", "14"))
     cc = s.get("custom_css", "")
-    return bg, pc, ac, cc
+    return bg, pc, ac, tc, cc_color, bc, ff, fs, cc
 
 def _e(v):
     return _h.escape(str(v))
@@ -93,7 +98,7 @@ function trackAction(action){
 def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
                   hours_left, settings=None, logo_url="", link_id="", code=""):
     s = settings or {}
-    bg, pc, ac, cc = _css_vars(s)
+    bg, pc, ac, tc, cc_color, bc, ff, fs, cc = _css_vars(s)
     pt = _e(s.get("page_title", "VilnoPay"))
     ps = _e(s.get("page_subtitle", "Безпечна оплата через банківський застосунок"))
     ft = _e(s.get("footer_text", "VilnoPayService · Захищено"))
@@ -125,15 +130,15 @@ def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
 <meta name="theme-color" content="{pc}">
 <title>{pt} — Оплата</title>
 <style>
-:root{{--blue:{pc};--green:{ac};--bg:{bg};--card:#fff;--text:#0f172a;--text2:#334155;
---muted:#64748b;--border:#e2e8f0;--blue-lt:#eff6ff;--blue-bd:#bfdbfe;
+:root{{--blue:{pc};--green:{ac};--bg:{bg};--card:{cc_color};--text:{tc};--text2:{tc};
+--muted:{tc};--border:{bc};--blue-lt:#eff6ff;--blue-bd:#bfdbfe;
 --green-lt:#f0fdf4;--green-bd:#bbf7d0;--amber:#f59e0b;
---sh:0 1px 3px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.04);--r:18px;--rs:12px;--t:.17s ease}}
-@media(prefers-color-scheme:dark){{:root{{--bg:{bg};--card:#1e293b;--text:#f1f5f9;--text2:#cbd5e1;
---muted:#94a3b8;--border:#334155;--blue-lt:#172554;--blue-bd:#1e40af;
+--sh:0 1px 3px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.04);--r:18px;--rs:12px;--t:.17s ease;--fs:{fs}px}}
+@media(prefers-color-scheme:dark){{:root{{--bg:{bg};--card:{cc_color};--text:{tc};--text2:{tc};
+--muted:{tc};--border:{bc};--blue-lt:#172554;--blue-bd:#1e40af;
 --green-lt:#052e16;--green-bd:#14532d;--sh:0 1px 3px rgba(0,0,0,.3),0 4px 12px rgba(0,0,0,.2)}}}}
 *,*::before,*::after{{margin:0;padding:0;box-sizing:border-box}}
-body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100svh;padding:0 0 env(safe-area-inset-bottom,24px)}}
+body{{font-family:{ff or '-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif'};font-size:var(--fs);background:var(--bg);color:var(--text);min-height:100svh;padding:0 0 env(safe-area-inset-bottom,24px)}}
 .wrap{{max-width:480px;margin:0 auto;padding:8px 14px 32px}}
 .logo{{text-align:center;padding:18px 0 14px}}
 .logo-mark{{font-size:24px;font-weight:800;letter-spacing:-.5px;color:var(--blue)}}

@@ -78,8 +78,13 @@ def init_db():
 def _migrate():
     """Міграції для існуючих БД (безпечні, idempotent)."""
     migrations = [
-        # Додати logo_filename в settings якщо нема
+        # Додати новi settings якщо нема
         "INSERT INTO settings (key, value) VALUES ('logo_filename', '') ON CONFLICT (key) DO NOTHING",
+        "INSERT INTO settings (key, value) VALUES ('text_color', '#0f172a') ON CONFLICT (key) DO NOTHING",
+        "INSERT INTO settings (key, value) VALUES ('card_color', '#ffffff') ON CONFLICT (key) DO NOTHING",
+        "INSERT INTO settings (key, value) VALUES ('border_color', '#e2e8f0') ON CONFLICT (key) DO NOTHING",
+        "INSERT INTO settings (key, value) VALUES ('font_family', '') ON CONFLICT (key) DO NOTHING",
+        "INSERT INTO settings (key, value) VALUES ('font_size', '14') ON CONFLICT (key) DO NOTHING",
         # Таблиця переглядів
         '''CREATE TABLE IF NOT EXISTS page_views_log (
             id              SERIAL PRIMARY KEY,

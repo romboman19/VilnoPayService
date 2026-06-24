@@ -107,6 +107,11 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div class="fg"><label>Колір фону сторінки</label><input id="s-bg_color" type="color" value="#f1f5f9"></div>
 <div class="fg"><label>Основний колір (кнопки, акценти)</label><input id="s-primary_color" type="color" value="#2563eb"></div>
 <div class="fg"><label>Акцентний колір</label><input id="s-accent_color" type="color" value="#16a34a"></div>
+<div class="fg"><label>Колір тексту</label><input id="s-text_color" type="color" value="#0f172a"></div>
+<div class="fg"><label>Колір блоків/карток</label><input id="s-card_color" type="color" value="#ffffff"></div>
+<div class="fg"><label>Колір межі</label><input id="s-border_color" type="color" value="#e2e8f0"></div>
+<div class="fg"><label>Родина шрифту (CSS)</label><input id="s-font_family" placeholder="напр. Georgia, serif (порожньо = системний)"></div>
+<div class="fg"><label>Розмір шрифту (px)</label><input id="s-font_size" type="number" min="10" max="24" value="14"></div>
 <div class="fg"><label>Заголовок</label><input id="s-page_title" placeholder="VilnoPay"></div>
 <div class="fg"><label>Підзаголовок</label><input id="s-page_subtitle"></div>
 <div class="fg"><label>Футер</label><input id="s-footer_text"></div>
@@ -220,14 +225,14 @@ async function delRcv(key){
 async function loadBrand(){
   try{
     const s=await api('GET','/admin/settings');
-    const keys=['logo_filename','logo_url','bg_color','primary_color','accent_color','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
+    const keys=['logo_filename','logo_url','bg_color','primary_color','accent_color','text_color','card_color','border_color','font_family','font_size','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
     for(const k of keys){const el=E('s-'+k);if(el&&s[k]!==undefined){if(el.type==='color')el.value=s[k]||el.value;else el.value=s[k];}}
     // Preview logo
     if(s.logo_filename){E('logo-preview-wrap').innerHTML='<img src="/static/'+esc(s.logo_filename)+'?t='+Date.now()+'" class="logo-preview" alt="Logo">';}
   }catch(e){}
 }
 async function saveBrand(){
-  const keys=['logo_url','bg_color','primary_color','accent_color','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
+  const keys=['logo_url','bg_color','primary_color','accent_color','text_color','card_color','border_color','font_family','font_size','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
   const settings={};for(const k of keys){settings[k]=E('s-'+k).value;}
   try{await api('PUT','/admin/settings',{settings});toast('Збережено');}catch(e){toast('Помилка: '+e.message);}
 }

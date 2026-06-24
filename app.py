@@ -295,6 +295,7 @@ def admin_get_settings(request: Request):
 def admin_update_settings(request: Request, body: SettingsUpdate):
     _require_admin(request)
     allowed = {"logo_filename","logo_url","bg_color","primary_color","accent_color",
+               "text_color","card_color","border_color","font_family","font_size",
                "page_title","page_subtitle","footer_text","link_ttl_hours","custom_css"}
     filtered = {k: v for k, v in body.settings.items() if k in allowed}
     update_settings(filtered)
