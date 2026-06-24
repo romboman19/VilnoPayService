@@ -15,27 +15,6 @@ def _e(v):
     return _h.escape(str(v))
 
 
-# SVG логотипи банків (inline, без зовнішніх запитів)
-BANK_LOGOS = {
-    "privatbank": '<svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8" fill="#0d7536"/><text x="16" y="22" text-anchor="middle" fill="#fff" font-size="16" font-weight="700" font-family="Arial">P</text></svg>',
-    "monobank": '<svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8" fill="#000"/><text x="16" y="22" text-anchor="middle" fill="#fff" font-size="14" font-weight="700" font-family="Arial">mono</text></svg>',
-    "pumb": '<svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8" fill="#e30613"/><text x="16" y="22" text-anchor="middle" fill="#fff" font-size="13" font-weight="700" font-family="Arial">ПУМБ</text></svg>',
-    "sense": '<svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8" fill="#005bac"/><text x="16" y="22" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" font-family="Arial">Sense</text></svg>',
-    "abank": '<svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8" fill="#ffd700"/><text x="16" y="22" text-anchor="middle" fill="#000" font-size="16" font-weight="700" font-family="Arial">A</text></svg>',
-    "novapay": '<svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8" fill="#ff6b00"/><text x="16" y="22" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" font-family="Arial">Nova</text></svg>',
-}
-
-# (key, name, deep_link_scheme, web_url)
-BANKS = [
-    ("privatbank", "ПриватБанк", "privatbank://", "https://next.privatbank.ua/"),
-    ("monobank",   "Monobank",   "monobank://",   "https://bank.gov.ua/qr/"),
-    ("pumb",       "ПУМБ",       "pumbonline://",  "https://bank.gov.ua/qr/"),
-    ("sense",      "Sense Bank", "sensebank://",   "https://bank.gov.ua/qr/"),
-    ("abank",      "А-Банк",     "abankua://",     "https://bank.gov.ua/qr/"),
-    ("novapay",    "NovaPay",    "novapay://",     "https://bank.gov.ua/qr/"),
-]
-
-
 COPY_JS = """
 <script>
 function copyField(btn,fid){
@@ -56,9 +35,56 @@ function _okAll(b){b.classList.add('ok');b.textContent='✅ Скопійован
   setTimeout(function(){b.classList.remove('ok');b.textContent='📋 Скопіювати всі реквізити';},2500);}
 function _fb(t){var a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';
   document.body.appendChild(a);a.select();document.execCommand('copy');document.body.removeChild(a);}
-function trackBank(bank){
+
+// Поділитися QR-зображенням через Web Share API
+async function shareQR(){
+  var btn=document.getElementById('share-btn');
+  try{
+    btn.classList.add('sharing');
+    var img=document.getElementById('qr-image');
+    var b64=img.src.split(',')[1];
+    var bin=atob(b64);
+    var arr=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+    var blob=new Blob([arr],{type:'image/png'});
+    var file=new File([blob],'qr-payment.png',{type:'image/png'});
+
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({
+        files:[file],
+        title:'QR-код для оплати',
+        text:'Відкрийте додаток банку та відскануйте цей QR-код'
+      });
+      trackAction('share_success');
+    }else{
+      // Fallback: завантажити зображення
+      var url=URL.createObjectURL(blob);
+      var a=document.createElement('a');
+      a.href=url;a.download='qr-payment.png';a.click();
+      URL.revokeObjectURL(url);
+      trackAction('download_fallback');
+      showToast('Збережіть зображення → відкрийте додаток банку → відскануйте QR з галереї');
+    }
+  }catch(e){
+    if(e.name!=='AbortError'){
+      trackAction('share_error');
+      showToast('Затисніть QR-зображення → «Поділитися» → оберіть додаток банку');
+    }
+  }finally{
+    btn.classList.remove('sharing');
+  }
+}
+
+function showToast(m){
+  var t=document.getElementById('share-toast');
+  if(!t)return;
+  t.textContent=m;t.classList.add('show');
+  setTimeout(function(){t.classList.remove('show');},5000);
+}
+
+function trackAction(action){
   fetch('/track/bank-click',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({link_id:LINK_ID,bank:bank})}).catch(function(){});
+    body:JSON.stringify({link_id:LINK_ID,bank:action})}).catch(function(){});
 }
 </script>
 """
@@ -78,27 +104,6 @@ def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
     nbu = _e(nbu_url)
 
     logo = f'<img src="{lu}" alt="Logo" style="max-height:48px;margin-bottom:8px;border-radius:8px;">' if lu else ""
-
-    # Кнопки банків з deep links + fallback
-    banks = ""
-    for key, name, scheme, web in BANKS:
-        svg = BANK_LOGOS.get(key, "")
-        # deep link з NBU URL як параметром; fallback на web
-        deep_link = scheme + nbu_url.replace("https://", "")
-        banks += (
-            f'<a class="bank-btn" '
-            f'href="{deep_link}" '
-            f'onclick="trackBank(\'{key}\');'
-            f'setTimeout(function(){{location.href=\'{web}\'}},300);'
-            f'return false;" '
-            f'rel="noopener">'
-            f'<span class="bank-icon">{svg}</span>{name}</a>\n'
-        )
-    banks += (
-        f'<a class="bank-btn bank-wide" href="{nbu}" target="_blank" rel="noopener" '
-        f'onclick="trackBank(\'universal\')">'
-        f'<span class="bank-icon">🏦</span>Відкрити у будь-якому банку →</a>'
-    )
 
     def req_row(label, vid, value, mono=False):
         mc = ' mono' if mono else ''
@@ -138,17 +143,26 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;b
 @keyframes fade-up{{from{{opacity:0;transform:translateY(10px)}}to{{opacity:1;transform:none}}}}
 .sec-head{{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}}
 .amount-chip{{display:inline-flex;align-items:center;gap:6px;background:var(--blue-lt);border:1px solid var(--blue-bd);color:var(--blue);font-size:21px;font-weight:800;border-radius:var(--rs);padding:6px 14px;margin-bottom:14px}}
-.banks{{display:grid;grid-template-columns:1fr 1fr;gap:8px}}
-.bank-btn{{display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:var(--rs);border:1.5px solid var(--border);text-decoration:none;color:var(--text);font-size:13.5px;font-weight:600;background:var(--card);transition:all var(--t)}}
-.bank-btn:active{{transform:scale(.95)}}
-.bank-icon{{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;background:#f1f5f9;overflow:hidden}}
-@media(prefers-color-scheme:dark){{.bank-icon{{background:#334155}}}}
-.bank-wide{{grid-column:1/-1;justify-content:center;background:var(--blue);color:#fff;border-color:var(--blue);font-size:14.5px;padding:13px}}
-.bank-wide:active{{filter:brightness(.9)}}
-.bank-wide .bank-icon{{background:rgba(255,255,255,.15)}}
+
+/* Кнопка «Поділитися QR» */
+.share-btn{{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;border-radius:var(--rs);border:none;background:var(--blue);color:#fff;font-size:16px;font-weight:700;cursor:pointer;transition:all var(--t);margin-bottom:12px}}
+.share-btn:active{{transform:scale(.97)}}
+.share-btn.sharing{{opacity:.6}}
+.share-icon{{font-size:22px}}
+
+/* Підказки */
+.hint-box{{background:var(--blue-lt);border:1px solid var(--blue-bd);border-radius:var(--rs);padding:12px 14px;margin-bottom:0}}
+.hint-box ol{{margin:0;padding-left:18px}}
+.hint-box li{{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:4px}}
+.hint-box li:last-child{{margin-bottom:0}}
+.hint-box li strong{{color:var(--blue)}}
+
+/* QR */
 .qr-wrap{{text-align:center;padding:4px 0 2px}}
 .qr-img{{width:min(260px,85vw);height:min(260px,85vw);border-radius:14px;border:1px solid var(--border);display:block;margin:0 auto;background:#fff}}
 .qr-hint{{font-size:12px;color:var(--muted);margin-top:10px}}
+
+/* Реквізити */
 .req-row{{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:8px}}
 .req-row:last-of-type{{border-bottom:none}}
 .req-left{{flex:1;min-width:0}}
@@ -164,22 +178,48 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;b
 .copy-all:active{{transform:scale(.97)}}
 .copy-all.ok{{color:var(--green);border-color:var(--green);background:var(--green-lt)}}
 .footer{{text-align:center;font-size:10px;color:var(--muted);opacity:.4;padding:14px 0 4px}}
+
+/* Toast */
+.share-toast{{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:14px 20px;border-radius:12px;font-size:13px;font-weight:600;max-width:90vw;text-align:center;opacity:0;transition:all .3s;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,.3)}}
+.share-toast.show{{opacity:1;transform:translateX(-50%) translateY(0)}}
 {cc}
 </style></head>
 <body style="background:{bg};"><div class="wrap">
 <div class="logo">{logo}<div class="logo-mark">{pt}</div><div class="logo-sub">{ps}</div>
 <div class="badge-ttl"><span class="dot"></span>Посилання активне ще {hours_left} год.</div></div>
-<div class="section"><div class="sec-head">Оплата через додаток</div>
+
+<div class="section">
+<div class="sec-head">Оплата через додаток</div>
 <div class="amount-chip">💳 {amount_line}</div>
-<div class="banks">{banks}</div></div>
-<div class="section"><div class="sec-head">Сканувати QR-код</div>
-<div class="qr-wrap"><img class="qr-img" src="data:image/png;base64,{qr_b64}" alt="QR код" loading="eager">
-<div class="qr-hint">Відскануйте з мобільного застосунку вашого банку</div></div></div>
-<div class="section"><div class="sec-head">Реквізити для оплати</div>
+<button class="share-btn" id="share-btn" onclick="shareQR()">
+<span class="share-icon">📤</span> Поділитися QR-кодом
+</button>
+<div class="hint-box">
+<ol>
+<li><strong>Натисніть кнопку вище</strong> «Поділитися QR-кодом»</li>
+<li><strong>Оберіть додаток банку</strong> у вікні «Поділитися»</li>
+<li>Додаток банку <strong>розпізнає QR</strong> і заповнить реквізити автоматично</li>
+</ol>
+</div>
+</div>
+
+<div class="section">
+<div class="sec-head">Сканувати QR-код</div>
+<div class="qr-wrap">
+<img class="qr-img" id="qr-image" src="data:image/png;base64,{qr_b64}" alt="QR код" loading="eager">
+<div class="qr-hint">Відскануйте камерою додатку вашого банку</div>
+</div>
+</div>
+
+<div class="section">
+<div class="sec-head">Реквізити для оплати</div>
 {reqs}
-<button class="copy-all" onclick="copyAll(this)">📋 Скопіювати всі реквізити</button></div>
+<button class="copy-all" onclick="copyAll(this)">📋 Скопіювати всі реквізити</button>
+</div>
+
 <div class="footer">{ft}</div>
 </div>
+<div class="share-toast" id="share-toast"></div>
 <script>var LINK_ID="{link_id}";</script>
 {COPY_JS}</body></html>"""
 
