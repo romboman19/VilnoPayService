@@ -6,8 +6,22 @@ services:
     env_file: .env
     ports:
       - "8099:8000"
+    depends_on:
+      - redis
     networks:
       - proxy
+
+  redis:
+    image: redis:7-alpine
+    container_name: pay-service-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - proxy
+
+volumes:
+  redis_data:
 
 networks:
   proxy:
