@@ -44,6 +44,11 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 .toast{position:fixed;bottom:24px;right:24px;background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;transform:translateY(10px);transition:all .3s;z-index:999}
 .toast.show{opacity:1;transform:none}
 .resp-table{overflow-x:auto}
+.logo-preview{max-height:60px;border-radius:8px;margin-top:8px;border:1px solid var(--border)}
+.upload-area{border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:border .15s}
+.upload-area:hover{border-color:var(--blue)}
+.upload-area input{display:none}
+.upload-hint{font-size:13px;color:var(--muted);margin-top:6px}
 </style>
 </head>
 <body>
@@ -69,7 +74,8 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div class="tab active" data-t="rcv">Отримувачі</div>
 <div class="tab" data-t="brand">Брендинг</div>
 <div class="tab" data-t="keys">API ключі</div>
-<div class="tab" data-t="log">Лог</div>
+<div class="tab" data-t="log">Лог посилань</div>
+<div class="tab" data-t="views">Перегляди</div>
 </div>
 
 <div class="panel active" id="p-rcv">
@@ -90,9 +96,16 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 
 <div class="panel" id="p-brand">
 <div class="card"><h2>Брендинг</h2>
-<div class="fg"><label>URL логотипу</label><input id="s-logo_url" placeholder="https://..."></div>
-<div class="fg"><label>Колір фону</label><input id="s-bg_color" type="color" value="#f1f5f9"></div>
-<div class="fg"><label>Основний колір</label><input id="s-primary_color" type="color" value="#2563eb"></div>
+<div class="fg"><label>Логотип (файл)</label>
+<div class="upload-area" onclick="document.getElementById('logo-file').click()">
+<div id="logo-preview-wrap"></div>
+<div class="upload-hint">Натисніть щоб завантажити (PNG, JPG, SVG, WebP — до 2MB)</div>
+<input type="file" id="logo-file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
+</div>
+</div>
+<div class="fg"><label>Або URL логотипу</label><input id="s-logo_url" placeholder="https://... (опціонально)"></div>
+<div class="fg"><label>Колір фону сторінки</label><input id="s-bg_color" type="color" value="#f1f5f9"></div>
+<div class="fg"><label>Основний колір (кнопки, акценти)</label><input id="s-primary_color" type="color" value="#2563eb"></div>
 <div class="fg"><label>Акцентний колір</label><input id="s-accent_color" type="color" value="#16a34a"></div>
 <div class="fg"><label>Заголовок</label><input id="s-page_title" placeholder="VilnoPay"></div>
 <div class="fg"><label>Підзаголовок</label><input id="s-page_subtitle"></div>
@@ -112,7 +125,11 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 </div>
 
 <div class="panel" id="p-log">
-<div class="card"><h2>Лог посилань</h2><div id="log-tbl"></div></div>
+<div class="card"><h2>Лог згенерованих посилань</h2><div id="log-tbl"></div></div>
+</div>
+
+<div class="panel" id="p-views">
+<div class="card"><h2>Лог переглядів клієнтами</h2><div id="views-tbl"></div></div>
 </div>
 
 </div>
@@ -150,7 +167,20 @@ E('tabs').addEventListener('click',e=>{
   t.classList.add('active');E('p-'+t.dataset.t).classList.add('active');
 });
 
-function loadAll(){loadRcv();loadBrand();loadKeys();loadLog();}
+function loadAll(){loadRcv();loadBrand();loadKeys();loadLog();loadViews();}
+
+// LOGO UPLOAD
+E('logo-file').addEventListener('change',async function(){
+  const f=this.files[0];if(!f)return;
+  const fd=new FormData();fd.append('file',f);
+  try{
+    const r=await fetch('/admin/upload-logo',{method:'POST',credentials:'same-origin',body:fd});
+    if(!r.ok){const d=await r.json();throw new Error(d.detail||'Помилка');}
+    const d=await r.json();
+    E('logo-preview-wrap').innerHTML='<img src="'+d.logo_url+'?t='+Date.now()+'" class="logo-preview" alt="Logo">';
+    toast('Логотип завантажено');
+  }catch(e){toast('Помилка: '+e.message);}
+});
 
 // RECEIVERS
 async function loadRcv(){
@@ -190,8 +220,10 @@ async function delRcv(key){
 async function loadBrand(){
   try{
     const s=await api('GET','/admin/settings');
-    const keys=['logo_url','bg_color','primary_color','accent_color','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
+    const keys=['logo_filename','logo_url','bg_color','primary_color','accent_color','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
     for(const k of keys){const el=E('s-'+k);if(el&&s[k]!==undefined){if(el.type==='color')el.value=s[k]||el.value;else el.value=s[k];}}
+    // Preview logo
+    if(s.logo_filename){E('logo-preview-wrap').innerHTML='<img src="/static/'+esc(s.logo_filename)+'?t='+Date.now()+'" class="logo-preview" alt="Logo">';}
   }catch(e){}
 }
 async function saveBrand(){
@@ -235,6 +267,22 @@ async function loadLog(){
     let h='<div class="resp-table"><table><thead><tr><th>ID</th><th>Отримувач</th><th>Призначення</th><th>Сума</th><th>API ключ</th><th>IP</th><th>Час</th></tr></thead><tbody>';
     for(const r of rows){
       h+=`<tr><td class="mono">${esc(r.link_id)}</td><td class="mono">${esc(r.receiver_key)}</td><td>${esc(r.purpose)}</td><td>${esc(r.amount||'—')}</td><td class="mono">${esc(r.api_key_prefix||'—')}</td><td>${esc(r.created_ip||'—')}</td><td>${r.created_at||'—'}</td></tr>`;
+    }
+    h+='</tbody></table></div>';el.innerHTML=h;
+  }catch(e){toast('Помилка: '+e.message);}
+}
+
+// VIEWS LOG
+async function loadViews(){
+  try{
+    const rows=await api('GET','/admin/views-log');const el=E('views-tbl');
+    if(!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає переглядів</p>';return;}
+    let h='<div class="resp-table"><table><thead><tr><th>ID посилання</th><th>IP</th><th>Пристрій</th><th>Банк</th><th>User-Agent</th><th>Час</th></tr></thead><tbody>';
+    for(const r of rows){
+      const dev=r.device_type||'—';
+      const bank=r.bank_clicked?esc(r.bank_clicked):'<span style="color:var(--muted)">—</span>';
+      const ua=r.user_agent?esc(r.user_agent.substring(0,50))+(r.user_agent.length>50?'…':''):'—';
+      h+=`<tr><td class="mono">${esc(r.link_id)}</td><td>${esc(r.viewer_ip||'—')}</td><td>${dev}</td><td>${bank}</td><td style="font-size:11px;color:var(--muted)">${ua}</td><td>${r.viewed_at||'—'}</td></tr>`;
     }
     h+='</tbody></table></div>';el.innerHTML=h;
   }catch(e){toast('Помилка: '+e.message);}

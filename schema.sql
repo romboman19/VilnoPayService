@@ -30,7 +30,7 @@ CREATE INDEX idx_admin_sessions_token ON admin_sessions(token);
 CREATE INDEX idx_admin_sessions_expires ON admin_sessions(expires_at);
 
 -- ── Налаштування брендингу (key-value) ──────────────────────
--- Ключі: logo_url, bg_color, primary_color, accent_color,
+-- Ключі: logo_filename, bg_color, primary_color, accent_color,
 --         page_title, page_subtitle, footer_text,
 --         link_ttl_hours, custom_css
 CREATE TABLE IF NOT EXISTS settings (
@@ -42,15 +42,15 @@ CREATE TABLE IF NOT EXISTS settings (
 
 -- Значення за замовчуванням
 INSERT INTO settings (key, value) VALUES
-    ('logo_url',        ''),
-    ('bg_color',        '#f1f5f9'),
-    ('primary_color',   '#2563eb'),
-    ('accent_color',    '#16a34a'),
-    ('page_title',      'VilnoPay'),
-    ('page_subtitle',   'Безпечна оплата через банківський застосунок'),
-    ('footer_text',     'VilnoPayService · Захищено'),
-    ('link_ttl_hours',  '24'),
-    ('custom_css',      '')
+    ('logo_filename',  ''),
+    ('bg_color',       '#f1f5f9'),
+    ('primary_color',  '#2563eb'),
+    ('accent_color',   '#16a34a'),
+    ('page_title',     'VilnoPay'),
+    ('page_subtitle',  'Безпечна оплата через банківський застосунок'),
+    ('footer_text',    'VilnoPayService · Захищено'),
+    ('link_ttl_hours', '24'),
+    ('custom_css',     '')
 ON CONFLICT (key) DO NOTHING;
 
 -- ── Отримувачі (рахунки для прийому платежів) ───────────────
@@ -92,6 +92,19 @@ CREATE TABLE IF NOT EXISTS payment_links_log (
 );
 CREATE INDEX idx_payment_links_created ON payment_links_log(created_at);
 CREATE INDEX idx_payment_links_receiver ON payment_links_log(receiver_key);
+
+-- ── Лог переглядів сторінок клієнтами ───────────────────────
+CREATE TABLE IF NOT EXISTS page_views_log (
+    id              SERIAL PRIMARY KEY,
+    link_id         VARCHAR(32) NOT NULL,
+    viewer_ip       VARCHAR(45),
+    user_agent      TEXT,
+    device_type     VARCHAR(20),           -- mobile / desktop / tablet
+    bank_clicked    VARCHAR(30),           -- який банк обрали (NULL якщо не клікнули)
+    viewed_at       TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_page_views_link ON page_views_log(link_id);
+CREATE INDEX idx_page_views_viewed ON page_views_log(viewed_at);
 
 -- ── Тригер updated_at ───────────────────────────────────────
 CREATE OR REPLACE FUNCTION update_updated_at()

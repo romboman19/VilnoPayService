@@ -11,9 +11,29 @@ def _css_vars(s):
     cc = s.get("custom_css", "")
     return bg, pc, ac, cc
 
-
 def _e(v):
     return _h.escape(str(v))
+
+
+# SVG логотипи банків (inline, без зовнішніх запитів)
+BANK_LOGOS = {
+    "privatbank": '<svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8" fill="#0d7536"/><text x="16" y="22" text-anchor="middle" fill="#fff" font-size="16" font-weight="700" font-family="Arial">P</text></svg>',
+    "monobank": '<svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8" fill="#000"/><text x="16" y="22" text-anchor="middle" fill="#fff" font-size="14" font-weight="700" font-family="Arial">mono</text></svg>',
+    "pumb": '<svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8" fill="#e30613"/><text x="16" y="22" text-anchor="middle" fill="#fff" font-size="13" font-weight="700" font-family="Arial">ПУМБ</text></svg>',
+    "sense": '<svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8" fill="#005bac"/><text x="16" y="22" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" font-family="Arial">Sense</text></svg>',
+    "abank": '<svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8" fill="#ffd700"/><text x="16" y="22" text-anchor="middle" fill="#000" font-size="16" font-weight="700" font-family="Arial">A</text></svg>',
+    "novapay": '<svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8" fill="#ff6b00"/><text x="16" y="22" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" font-family="Arial">Nova</text></svg>',
+}
+
+# (key, name, deep_link_scheme, web_url)
+BANKS = [
+    ("privatbank", "ПриватБанк", "privatbank://", "https://next.privatbank.ua/"),
+    ("monobank",   "Monobank",   "monobank://",   "https://bank.gov.ua/qr/"),
+    ("pumb",       "ПУМБ",       "pumbonline://",  "https://bank.gov.ua/qr/"),
+    ("sense",      "Sense Bank", "sensebank://",   "https://bank.gov.ua/qr/"),
+    ("abank",      "А-Банк",     "abankua://",     "https://bank.gov.ua/qr/"),
+    ("novapay",    "NovaPay",    "novapay://",     "https://bank.gov.ua/qr/"),
+]
 
 
 COPY_JS = """
@@ -30,36 +50,55 @@ function copyAll(btn){
   var t='Отримувач: '+r+'\\nIBAN: '+i+'\\nПризначення: '+p+'\\nСума: '+a;
   navigator.clipboard.writeText(t).then(function(){_okAll(btn)}).catch(function(){_fb(t);_okAll(btn)});
 }
-function _ok(b){b.classList.add('ok');b.innerHTML='✅<span class=\"tip\">Скопійовано!</span>';
-  setTimeout(function(){b.classList.remove('ok');b.innerHTML='📋<span class=\"tip\">Скопійовано!</span>';},2200);}
+function _ok(b){b.classList.add('ok');b.innerHTML='✅<span class="tip">Скопійовано!</span>';
+  setTimeout(function(){b.classList.remove('ok');b.innerHTML='📋<span class="tip">Скопійовано!</span>';},2200);}
 function _okAll(b){b.classList.add('ok');b.textContent='✅ Скопійовано!';
   setTimeout(function(){b.classList.remove('ok');b.textContent='📋 Скопіювати всі реквізити';},2500);}
 function _fb(t){var a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';
   document.body.appendChild(a);a.select();document.execCommand('copy');document.body.removeChild(a);}
+function trackBank(bank){
+  fetch('/track/bank-click',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({link_id:LINK_ID,bank:bank})}).catch(function(){});
+}
 </script>
 """
 
 
 def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
-                  hours_left, settings=None):
+                  hours_left, settings=None, logo_url="", link_id=""):
     s = settings or {}
     bg, pc, ac, cc = _css_vars(s)
     pt = _e(s.get("page_title", "VilnoPay"))
     ps = _e(s.get("page_subtitle", "Безпечна оплата через банківський застосунок"))
     ft = _e(s.get("footer_text", "VilnoPayService · Захищено"))
-    lu = _e(s.get("logo_url", ""))
+    lu = _e(logo_url) if logo_url else _e(s.get("logo_url", ""))
 
     receiver = _e(receiver); iban = _e(iban)
     purpose = _e(purpose); amount_line = _e(amount_line)
     nbu = _e(nbu_url)
 
-    logo = f'<img src="{lu}" alt="Logo" style="max-height:48px;margin-bottom:8px;">' if lu else ""
+    logo = f'<img src="{lu}" alt="Logo" style="max-height:48px;margin-bottom:8px;border-radius:8px;">' if lu else ""
 
+    # Кнопки банків з deep links + fallback
     banks = ""
-    for emoji, name in [("🟢","ПриватБанк"),("🖤","Monobank"),("🔴","ПУМБ"),
-                         ("🔵","Sense Bank"),("🟡","А-Банк"),("🟠","NovaPay")]:
-        banks += f'<a class="bank-btn" href="{nbu}" target="_blank" rel="noopener"><span class="bank-icon">{emoji}</span>{name}</a>\n'
-    banks += f'<a class="bank-btn bank-wide" href="{nbu}" target="_blank" rel="noopener"><span class="bank-icon">🏦</span>Відкрити у будь-якому банку →</a>'
+    for key, name, scheme, web in BANKS:
+        svg = BANK_LOGOS.get(key, "")
+        # deep link з NBU URL як параметром; fallback на web
+        deep_link = scheme + nbu_url.replace("https://", "")
+        banks += (
+            f'<a class="bank-btn" '
+            f'href="{deep_link}" '
+            f'onclick="trackBank(\'{key}\');'
+            f'setTimeout(function(){{location.href=\'{web}\'}},300);'
+            f'return false;" '
+            f'rel="noopener">'
+            f'<span class="bank-icon">{svg}</span>{name}</a>\n'
+        )
+    banks += (
+        f'<a class="bank-btn bank-wide" href="{nbu}" target="_blank" rel="noopener" '
+        f'onclick="trackBank(\'universal\')">'
+        f'<span class="bank-icon">🏦</span>Відкрити у будь-якому банку →</a>'
+    )
 
     def req_row(label, vid, value, mono=False):
         mc = ' mono' if mono else ''
@@ -83,15 +122,14 @@ def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
 --muted:#64748b;--border:#e2e8f0;--blue-lt:#eff6ff;--blue-bd:#bfdbfe;
 --green-lt:#f0fdf4;--green-bd:#bbf7d0;--amber:#f59e0b;
 --sh:0 1px 3px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.04);--r:18px;--rs:12px;--t:.17s ease}}
-@media(prefers-color-scheme:dark){{:root{{--bg:#0f172a;--card:#1e293b;--text:#f1f5f9;--text2:#cbd5e1;
+@media(prefers-color-scheme:dark){{:root{{--bg:{bg};--card:#1e293b;--text:#f1f5f9;--text2:#cbd5e1;
 --muted:#94a3b8;--border:#334155;--blue-lt:#172554;--blue-bd:#1e40af;
 --green-lt:#052e16;--green-bd:#14532d;--sh:0 1px 3px rgba(0,0,0,.3),0 4px 12px rgba(0,0,0,.2)}}}}
 *,*::before,*::after{{margin:0;padding:0;box-sizing:border-box}}
 body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100svh;padding:0 0 env(safe-area-inset-bottom,24px)}}
 .wrap{{max-width:480px;margin:0 auto;padding:8px 14px 32px}}
 .logo{{text-align:center;padding:18px 0 14px}}
-.logo-mark{{font-size:24px;font-weight:800;letter-spacing:-.5px;color:var(--text)}}
-.logo-mark em{{color:var(--blue);font-style:normal}}
+.logo-mark{{font-size:24px;font-weight:800;letter-spacing:-.5px;color:var(--blue)}}
 .logo-sub{{font-size:12px;color:var(--muted);margin-top:4px}}
 .badge-ttl{{display:inline-flex;align-items:center;gap:5px;margin-top:10px;font-size:11px;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:99px;padding:3px 10px 3px 8px}}
 .dot{{width:6px;height:6px;border-radius:50%;background:var(--amber);animation:pulse-dot 2.2s ease-in-out infinite}}
@@ -103,7 +141,7 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;b
 .banks{{display:grid;grid-template-columns:1fr 1fr;gap:8px}}
 .bank-btn{{display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:var(--rs);border:1.5px solid var(--border);text-decoration:none;color:var(--text);font-size:13.5px;font-weight:600;background:var(--card);transition:all var(--t)}}
 .bank-btn:active{{transform:scale(.95)}}
-.bank-icon{{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;background:#f1f5f9}}
+.bank-icon{{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;background:#f1f5f9;overflow:hidden}}
 @media(prefers-color-scheme:dark){{.bank-icon{{background:#334155}}}}
 .bank-wide{{grid-column:1/-1;justify-content:center;background:var(--blue);color:#fff;border-color:var(--blue);font-size:14.5px;padding:13px}}
 .bank-wide:active{{filter:brightness(.9)}}
@@ -128,7 +166,7 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;b
 .footer{{text-align:center;font-size:10px;color:var(--muted);opacity:.4;padding:14px 0 4px}}
 {cc}
 </style></head>
-<body><div class="wrap">
+<body style="background:{bg};"><div class="wrap">
 <div class="logo">{logo}<div class="logo-mark">{pt}</div><div class="logo-sub">{ps}</div>
 <div class="badge-ttl"><span class="dot"></span>Посилання активне ще {hours_left} год.</div></div>
 <div class="section"><div class="sec-head">Оплата через додаток</div>
@@ -141,7 +179,9 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;b
 {reqs}
 <button class="copy-all" onclick="copyAll(this)">📋 Скопіювати всі реквізити</button></div>
 <div class="footer">{ft}</div>
-</div>{COPY_JS}</body></html>"""
+</div>
+<script>var LINK_ID="{link_id}";</script>
+{COPY_JS}</body></html>"""
 
 
 def expired_page_html():

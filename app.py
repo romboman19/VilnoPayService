@@ -8,9 +8,9 @@ from pathlib import Path
 import bcrypt
 import qrcode
 import redis
-from fastapi import FastAPI, Header, HTTPException, Request, Response
+from fastapi import FastAPI, Header, HTTPException, Request, Response, UploadFile, File
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -25,7 +25,8 @@ from db import (
     create_receiver, get_receiver_by_key, list_receivers,
     update_receiver, delete_receiver,
     create_admin_session, get_admin_session, delete_admin_session,
-    log_payment_link, cleanup_expired_sessions,
+    log_payment_link, log_page_view, list_page_views, list_page_views_for_link,
+    cleanup_expired_sessions,
 )
 from templates import pay_page_html, expired_page_html
 
@@ -73,7 +74,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;"
         else:
             resp.headers["Content-Security-Policy"] = \
-                "default-src 'self'; img-src 'self' data: https://*.privatbank.ua; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+                "default-src 'self'; img-src 'self' data: https://*.privatbank.ua; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'"
         return resp
 
 app.add_middleware(SecurityHeadersMiddleware)
@@ -159,6 +160,12 @@ def _validate_link_id(lid):
     if not re.match(r"^[A-Za-z0-9_-]{8,32}$", lid):
         raise HTTPException(400, "Invalid link ID")
     return lid
+
+def _detect_device(ua: str) -> str:
+    ua = (ua or "").lower()
+    if "ipad" in ua or "tablet" in ua: return "tablet"
+    if "iphone" in ua or "android" in ua or "mobile" in ua: return "mobile"
+    return "desktop"
 
 
 # ── Pydantic models ──────────────────────────────────────────
@@ -287,7 +294,7 @@ def admin_get_settings(request: Request):
 @app.put("/admin/settings")
 def admin_update_settings(request: Request, body: SettingsUpdate):
     _require_admin(request)
-    allowed = {"logo_url","bg_color","primary_color","accent_color",
+    allowed = {"logo_filename","logo_url","bg_color","primary_color","accent_color",
                "page_title","page_subtitle","footer_text","link_ttl_hours","custom_css"}
     filtered = {k: v for k, v in body.settings.items() if k in allowed}
     update_settings(filtered)
@@ -364,6 +371,63 @@ def admin_revoke_api_key(request: Request, key_id: int):
     _require_admin(request)
     revoke_api_key(key_id)
     logger.info("API_KEY_REVOKED id=%s", key_id)
+    return {"ok": True}
+
+
+# ── Admin Logo Upload ───────────────────────────────────────
+
+@app.post("/admin/upload-logo")
+def admin_upload_logo(request: Request, file: UploadFile = File(...)):
+    _require_admin(request)
+    # Перевірка типу
+    if file.content_type not in ("image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"):
+        raise HTTPException(400, "Дозволені: PNG, JPEG, WebP, GIF, SVG")
+    # Перевірка розміру (max 2MB)
+    contents = file.file.read()
+    if len(contents) > 2 * 1024 * 1024:
+        raise HTTPException(400, "Максимальний розмір: 2MB")
+    # Розширення
+    ext = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp",
+           "image/gif": ".gif", "image/svg+xml": ".svg"}.get(file.content_type, ".png")
+    filename = f"logo{ext}"
+    logo_path = static_dir / filename
+    logo_path.write_bytes(contents)
+    # Зберегти ім'я файлу в settings
+    update_settings({"logo_filename": filename})
+    logger.info("LOGO_UPLOADED file=%s size=%d", filename, len(contents))
+    return {"ok": True, "logo_url": f"/static/{filename}"}
+
+
+# ── Admin Views Log ──────────────────────────────────────────
+
+@app.get("/admin/views-log")
+def admin_views_log(request: Request, limit: int = 100):
+    _require_admin(request)
+    rows = list_page_views(limit)
+    for r in rows:
+        if r.get("viewed_at"): r["viewed_at"] = str(r["viewed_at"])
+    return rows
+
+@app.get("/admin/views-log/{link_id}")
+def admin_views_for_link(request: Request, link_id: str):
+    _require_admin(request)
+    rows = list_page_views_for_link(link_id)
+    for r in rows:
+        if r.get("viewed_at"): r["viewed_at"] = str(r["viewed_at"])
+    return rows
+
+
+# ── Track bank click ─────────────────────────────────────────
+
+@app.post("/track/bank-click")
+@limiter.limit("60/minute")
+def track_bank_click(request: Request, body: dict):
+    link_id = body.get("link_id", "")
+    bank = body.get("bank", "")
+    if link_id and bank:
+        ua = request.headers.get("user-agent", "")
+        device = _detect_device(ua)
+        log_page_view(link_id, get_remote_address(request), ua, device, bank_clicked=bank)
     return {"ok": True}
 
 
@@ -468,8 +532,17 @@ def pay_page(request: Request, link_id: str):
     # Брендинг з БД
     settings = get_settings()
 
-    logger.info("LINK_VIEW id=%s ip=%s ttl=%ds", link_id, get_remote_address(request), ttl_sec)
+    # Лог перегляду
+    ua = request.headers.get("user-agent", "")
+    device = _detect_device(ua)
+    log_page_view(link_id, get_remote_address(request), ua, device)
+    logger.info("LINK_VIEW id=%s ip=%s device=%s ttl=%ds", link_id, get_remote_address(request), device, ttl_sec)
+
+    # Логотип
+    logo_fn = settings.get("logo_filename", "")
+    logo_url = f"/static/{logo_fn}" if logo_fn else settings.get("logo_url", "")
+
     return HTMLResponse(content=pay_page_html(
         nbu_url, data["receiver"], data["iban"], data["purpose"],
-        amt_line, qr_b64, hours_left, settings
+        amt_line, qr_b64, hours_left, settings, logo_url, link_id
     ))

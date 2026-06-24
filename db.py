@@ -222,3 +222,24 @@ def log_payment_link(link_id, receiver_key, purpose, amount, api_key_prefix, ip)
            VALUES (%s, %s, %s, %s, %s, %s)""",
         (link_id, receiver_key, purpose, amount, api_key_prefix, ip)
     )
+
+# ── Page views log ──────────────────────────────────────────
+
+def log_page_view(link_id, viewer_ip, user_agent, device_type, bank_clicked=None):
+    pg_execute(
+        """INSERT INTO page_views_log (link_id, viewer_ip, user_agent, device_type, bank_clicked)
+           VALUES (%s, %s, %s, %s, %s)""",
+        (link_id, viewer_ip, (user_agent or "")[:500], device_type, bank_clicked)
+    )
+
+def list_page_views(limit=100):
+    return pg_query(
+        "SELECT * FROM page_views_log ORDER BY viewed_at DESC LIMIT %s",
+        (min(limit, 500),), fetchall=True
+    ) or []
+
+def list_page_views_for_link(link_id, limit=50):
+    return pg_query(
+        "SELECT * FROM page_views_log WHERE link_id = %s ORDER BY viewed_at DESC LIMIT %s",
+        (link_id, min(limit, 200)), fetchall=True
+    ) or []
