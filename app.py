@@ -544,5 +544,5 @@ def pay_page(request: Request, link_id: str):
 
     return HTMLResponse(content=pay_page_html(
         nbu_url, data["receiver"], data["iban"], data["purpose"],
-        amt_line, qr_b64, hours_left, settings, logo_url, link_id
+        amt_line, qr_b64, hours_left, settings, logo_url, link_id, data.get("code", "")
     ))

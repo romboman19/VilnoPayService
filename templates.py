@@ -91,7 +91,7 @@ function trackAction(action){
 
 
 def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
-                  hours_left, settings=None, logo_url="", link_id=""):
+                  hours_left, settings=None, logo_url="", link_id="", code=""):
     s = settings or {}
     bg, pc, ac, cc = _css_vars(s)
     pt = _e(s.get("page_title", "VilnoPay"))
@@ -102,6 +102,7 @@ def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
     receiver = _e(receiver); iban = _e(iban)
     purpose = _e(purpose); amount_line = _e(amount_line)
     nbu = _e(nbu_url)
+    code_e = _e(code)
 
     logo = f'<img src="{lu}" alt="Logo" style="max-height:48px;margin-bottom:8px;border-radius:8px;">' if lu else ""
 
@@ -113,6 +114,7 @@ def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
 
     reqs = req_row("Отримувач", "v-receiver", receiver)
     reqs += req_row("IBAN", "v-iban", iban, mono=True)
+    reqs += req_row("РНКОПП (ІПН)", "v-code", code_e, mono=True)
     reqs += req_row("Призначення платежу", "v-purpose", purpose)
     reqs += req_row("Сума", "v-amount", amount_line)
 
@@ -188,8 +190,13 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;b
 <div class="logo">{logo}<div class="logo-mark">{pt}</div><div class="logo-sub">{ps}</div>
 <div class="badge-ttl"><span class="dot"></span>Посилання активне ще {hours_left} год.</div></div>
 
+<div class="section" style="text-align:center;padding:20px 16px">
+<div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:4px">Оберiть зручний спосiб оплати</div>
+<div style="font-size:13px;color:var(--muted)">Три простих способи оплатити переказом</div>
+</div>
+
 <div class="section">
-<div class="sec-head">Оплата через додаток</div>
+<div class="sec-head">Спосiб 1 — Оплата через додаток</div>
 <div class="amount-chip">💳 {amount_line}</div>
 <button class="share-btn" id="share-btn" onclick="shareQR()">
 <span class="share-icon">🏦</span> Оплатити через додаток банку
@@ -205,7 +212,7 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;b
 </div>
 
 <div class="section">
-<div class="sec-head">Сканувати QR-код</div>
+<div class="sec-head">Спосiб 2 — Сканувати QR-код</div>
 <div class="qr-wrap">
 <img class="qr-img" id="qr-image" src="data:image/png;base64,{qr_b64}" alt="QR код" loading="eager">
 <div class="qr-hint">Відскануйте камерою додатку вашого банку</div>
@@ -213,7 +220,7 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;b
 </div>
 
 <div class="section">
-<div class="sec-head">Реквізити для оплати</div>
+<div class="sec-head">Спосiб 3 — Реквізити для оплати</div>
 {reqs}
 <button class="copy-all" onclick="copyAll(this)">📋 Скопіювати всі реквізити</button>
 </div>
