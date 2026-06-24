@@ -71,10 +71,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         resp.headers["Referrer-Policy"] = "no-referrer"
         if request.url.path.startswith("/admin"):
             resp.headers["Content-Security-Policy"] = \
-                "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;"
+                "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' https://fonts.gstatic.com"
         else:
             resp.headers["Content-Security-Policy"] = \
-                "default-src 'self'; img-src 'self' data: https://*.privatbank.ua; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'"
+                "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self' https://fonts.gstatic.com"
         return resp
 
 app.add_middleware(SecurityHeadersMiddleware)
