@@ -191,5 +191,3 @@ UAH1500      ← Сума + валюта
 AGPL-3.0 — див. [LICENSE](LICENSE) або https://www.gnu.org/licenses/agpl-3.0.html
 
 ---
-
-**Власник:** [HUNTER.rv](https://hunter.rv.ua) · Рівне, Україна
