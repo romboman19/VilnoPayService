@@ -60,7 +60,7 @@ curl -X POST https://pay.example.com/generate \
   -H "X-API-Key: vpk_xxxxxxxxxxxxxxxx" \
   -d '{
     "receiver_key": "rcv_abc123",
-    "purpose": "За товар HUNTER",
+    "purpose": "За товар, згідно рахунку №1 від 01.01.2026р",
     "amount": "1500"
   }'
 ```
