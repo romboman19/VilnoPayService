@@ -316,12 +316,12 @@ async function loadKeys(){
   try{
     const rows=await api('GET','/admin/api-keys');const el=E('keys-tbl');
     if(!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає ключів</p>';return;}
-    let h='<table><thead><tr><th>Префікс</th><th>Назва</th><th>Статус</th><th>Останнє використання</th><th></th></tr></thead><tbody>';
+    let h='<div class="resp-table"><table><thead><tr><th>Префікс</th><th>Назва</th><th>Статус</th><th>Останнє використання</th><th style="white-space:nowrap"></th></tr></thead><tbody>';
     for(const r of rows){
       const b=r.is_active?'<span class="badge badge-g">Активний</span>':'<span class="badge badge-r">Відкликано</span>';
-      h+=`<tr><td class="mono">${esc(r.key_prefix)}...</td><td>${esc(r.label)}</td><td>${b}</td><td>${r.last_used_at||'—'}</td><td>${r.is_active?'<button class="btn btn-red btn-sm" onclick="revokeKey('+r.id+')">Відкликати</button>':''}</td></tr>`;
+      h+=`<tr><td class="mono">${esc(r.key_prefix)}...</td><td>${esc(r.label)}</td><td>${b}</td><td>${fmtKiev(r.last_used_at)}</td><td style="white-space:nowrap">${r.is_active?'<button class="btn btn-red btn-sm" onclick="revokeKey('+r.id+')">Відкликати</button>':''}</td></tr>`;
     }
-    h+='</tbody></table>';el.innerHTML=h;
+    h+='</tbody></table></div>';el.innerHTML=h;
   }catch(e){toast('Помилка: '+e.message);}
 }
 async function createKey(){
