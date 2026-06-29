@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt && \
     apt-get update && apt-get install -y --no-install-recommends fonts-dejavu && \
     rm -rf /var/lib/apt/lists/*
 
-COPY app.py db.py templates.py schema.sql admin.html ./
+COPY app.py db.py templates.py schema.sql admin.html manager.html ./
 
 RUN chown -R appuser:appuser /app
 
