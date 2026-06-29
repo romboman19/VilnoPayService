@@ -8,8 +8,8 @@ VilnoPayService — self-hosted веб-сервіс для створення п
 
 | Роль | Доступ | Опис |
 |------|--------|------|
-| **Адмін** | `/admin` | Керує менеджерами, отримувачами, брендингом, переглядає логи |
-| **Менеджер** | `/manager` | Створює платіжні посилання для клієнтів, шаблони платежів |
+| **Адмін** | `https://pay.domain.com/admin` | Керує менеджерами, отримувачами, брендингом, переглядає логи |
+| **Менеджер** | `https://pay.domain.com/manager` | Створює платіжні посилання для клієнтів, шаблони платежів |
 | **Клієнт** | `/p/{link_id}` | Відкриває посилання → оплачує через банк-додаток або QR |
 
 ## Можливості
@@ -77,17 +77,54 @@ docker compose up -d --build
 
 ### POST /generate
 
-Створює платіжне посилання. Вимагає менеджерський API ключ.
+Створює платіжне посилання. Вимагає менеджерський API ключ (`vpk_...`).
 
 ```bash
-curl -X POST https://pay.example.com/generate \
+curl -X POST https://pay.domain.com/generate \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: vpk_xxxxxxxxxxxxxxxx" \
+  -H "X-API-Key: vpk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
   -d '{
     "receiver_key": "rcv_abc123",
     "purpose": "За товар HUNTER",
     "amount": "1500"
   }'
+```
+
+**Відповідь:**
+
+```json
+{
+  "pay_url": "https://pay.domain.com/p/abc123XYZ...",
+  "nbu_url": "https://bank.gov.ua/qr/QkNE...",
+  "qr_base64": "iVBOR...",
+  "expires_in_hours": 24
+}
+```
+
+**Поля запиту:**
+
+| Параметр | Тип | Опис |
+|----------|-----|------|
+| `receiver_key` | string | Ключ отримувача (з адмінки, напр. `rcv_abc123`) |
+| `purpose` | string | Призначення платежу (2-420 символів) |
+| `amount` | string? | Сума (опціонально, напр. `1500` або `1500.00`) |
+
+**Приклад для n8n (HTTP Request):**
+
+```json
+{
+  "method": "POST",
+  "url": "https://pay.domain.com/generate",
+  "headers": {
+    "Content-Type": "application/json",
+    "X-API-Key": "vpk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  "body": {
+    "receiver_key": "rcv_abc123",
+    "purpose": "За товар HUNTER",
+    "amount": "1500"
+  }
+}
 ```
 
 **Відповідь:**
@@ -200,7 +237,3 @@ UAH1500          ← Сума + валюта
 ## Ліцензія
 
 AGPL-3.0 — див. [LICENSE](LICENSE) або https://www.gnu.org/licenses/agpl-3.0.html
-
----
-
-**Власник:** [HUNTER.rv](https://hunter.rv.ua) · Рівне, Україна
