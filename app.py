@@ -94,8 +94,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             resp.headers["Content-Security-Policy"] = \
                 "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' https://fonts.gstatic.com"
         else:
-            resp.headers["Content-Security-Policy"] = \
-                "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self' https://fonts.gstatic.com"
+            # Публічнi сторiнки — дозволити LiqPay
+            csp = ("default-src 'self'; "
+                   "img-src 'self' data:; "
+                   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                   "script-src 'self' 'unsafe-inline' https://static.liqpay.ua; "
+                   "frame-src 'self' https://www.liqpay.ua https://static.liqpay.ua; "
+                   "connect-src 'self' https://www.liqpay.ua; "
+                   "font-src 'self' https://fonts.gstatic.com")
+            resp.headers["Content-Security-Policy"] = csp
         return resp
 
 app.add_middleware(SecurityHeadersMiddleware)
@@ -774,7 +781,7 @@ def liqpay_checkout_data(request: Request, link_id: str):
     except (json.JSONDecodeError, TypeError):
         pass
     data_b64 = liqpay_encode_data(lp_params)
-    signature = liqpay_signature(provider_full["private_key"], data_b64)
+    signature = liqpay_signature(private_key, data_b64)
     logger.info("LIQPAY_CHECKOUT link=%s order=%s amount=%s", link_id, order_id, amount)
     return {
         "data": data_b64,
