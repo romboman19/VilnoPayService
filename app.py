@@ -114,6 +114,12 @@ def _require_manager(request: Request) -> dict:
         raise HTTPException(403, "Доступ лише для менеджерів")
     return session
 
+def _require_role(request: Request, role: str) -> dict:
+    session = _require_admin(request)
+    if session.get("role") != role:
+        raise HTTPException(403, "Недостатньо прав")
+    return session
+
 def build_open_data(receiver, iban, code, purpose, amount):
     iban = iban.replace(" ", "").strip()
     amt = f"UAH{amount.strip().replace(',', '.')}" if amount else ""
@@ -296,16 +302,23 @@ def admin_me(request: Request):
 
 @app.get("/admin/settings")
 def admin_get_settings(request: Request):
-    _require_admin(request)
+    _require_role(request, "admin")
     return get_settings()
 
 @app.put("/admin/settings")
 def admin_update_settings(request: Request, body: SettingsUpdate):
-    _require_admin(request)
+    _require_role(request, "admin")
     allowed = {"logo_filename","bg_color","primary_color","accent_color",
                "text_color","card_color","border_color","font_family","font_size",
                "page_title","page_subtitle","footer_text","link_ttl_hours","custom_css"}
     filtered = {k: v for k, v in body.settings.items() if k in allowed}
+    if "custom_css" in filtered:
+        css = filtered["custom_css"]
+        if len(css) > 4000:
+            raise HTTPException(400, "custom_css: максимум 4000 символів")
+        forbidden = ["url(", "expression(", "import", "@charset", "javascript:"]
+        if any(f in css.lower() for f in forbidden):
+            raise HTTPException(400, "custom_css: заборонені конструкції")
     update_settings(filtered)
     logger.info("SETTINGS_UPDATED keys=%s", list(filtered.keys()))
     return {"ok": True}
@@ -315,7 +328,7 @@ def admin_update_settings(request: Request, body: SettingsUpdate):
 
 @app.get("/admin/receivers")
 def admin_list_receivers(request: Request):
-    _require_admin(request)
+    _require_role(request, "admin")
     rows = list_receivers()
     # Серіалізація datetime
     for r in rows:
@@ -326,7 +339,7 @@ def admin_list_receivers(request: Request):
 
 @app.post("/admin/receivers")
 def admin_create_receiver(request: Request, body: ReceiverCreate):
-    _require_admin(request)
+    _require_role(request, "admin")
     rcv = create_receiver(body.name, body.receiver, body.iban, body.edrpou)
     for k in ("created_at", "updated_at"):
         if rcv.get(k): rcv[k] = str(rcv[k])
@@ -335,7 +348,7 @@ def admin_create_receiver(request: Request, body: ReceiverCreate):
 
 @app.put("/admin/receivers/{receiver_key}")
 def admin_update_receiver(request: Request, receiver_key: str, body: ReceiverUpdate):
-    _require_admin(request)
+    _require_role(request, "admin")
     existing = get_receiver_by_key(receiver_key)
     if not existing:
         raise HTTPException(404, "Отримувач не знайдений")
@@ -346,7 +359,7 @@ def admin_update_receiver(request: Request, receiver_key: str, body: ReceiverUpd
 
 @app.delete("/admin/receivers/{receiver_key}")
 def admin_delete_receiver(request: Request, receiver_key: str):
-    _require_admin(request)
+    _require_role(request, "admin")
     existing = get_receiver_by_key(receiver_key)
     if not existing:
         raise HTTPException(404, "Отримувач не знайдений")
@@ -359,7 +372,7 @@ def admin_delete_receiver(request: Request, receiver_key: str):
 
 @app.get("/admin/api-keys")
 def admin_list_api_keys(request: Request):
-    _require_admin(request)
+    _require_role(request, "admin")
     rows = list_api_keys()
     for r in rows:
         for k in ("last_used_at", "created_at"):
@@ -368,7 +381,7 @@ def admin_list_api_keys(request: Request):
 
 @app.delete("/admin/api-keys/{key_id}")
 def admin_revoke_api_key(request: Request, key_id: int):
-    _require_admin(request)
+    _require_role(request, "admin")
     revoke_api_key(key_id)
     logger.info("API_KEY_REVOKED id=%s", key_id)
     return {"ok": True}
@@ -378,17 +391,23 @@ def admin_revoke_api_key(request: Request, key_id: int):
 
 @app.post("/admin/upload-logo")
 def admin_upload_logo(request: Request, file: UploadFile = File(...)):
-    _require_admin(request)
-    # Перевірка типу
-    if file.content_type not in ("image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"):
-        raise HTTPException(400, "Дозволені: PNG, JPEG, WebP, GIF, SVG")
+    _require_role(request, "admin")
+    # Валідація типу (SVG заборонено — XSS ризик)
+    ALLOWED_LOGO_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+    if file.content_type not in ALLOWED_LOGO_TYPES:
+        raise HTTPException(400, "Дозволені формати: PNG, JPEG, WebP, GIF")
     # Перевірка розміру (max 2MB)
     contents = file.file.read()
     if len(contents) > 2 * 1024 * 1024:
         raise HTTPException(400, "Максимальний розмір: 2MB")
+    # Magic bytes перевірка
+    MAGIC = {b"\x89PNG": "image/png", b"\xff\xd8\xff": "image/jpeg",
+             b"RIFF": "image/webp", b"GIF8": "image/gif"}
+    if not any(contents.startswith(sig) for sig in MAGIC):
+        raise HTTPException(400, "Файл не відповідає задекларованому типу")
     # Розширення
     ext = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp",
-           "image/gif": ".gif", "image/svg+xml": ".svg"}.get(file.content_type, ".png")
+           "image/gif": ".gif"}.get(file.content_type, ".png")
     filename = f"logo{ext}"
     logo_path = static_dir / filename
     logo_path.write_bytes(contents)
@@ -402,7 +421,7 @@ def admin_upload_logo(request: Request, file: UploadFile = File(...)):
 
 @app.get("/admin/views-log")
 def admin_views_log(request: Request, limit: int = 100):
-    _require_admin(request)
+    _require_role(request, "admin")
     rows = list_page_views(limit)
     for r in rows:
         if r.get("viewed_at"): r["viewed_at"] = str(r["viewed_at"])
@@ -410,7 +429,7 @@ def admin_views_log(request: Request, limit: int = 100):
 
 @app.get("/admin/views-log/{link_id}")
 def admin_views_for_link(request: Request, link_id: str):
-    _require_admin(request)
+    _require_role(request, "admin")
     rows = list_page_views_for_link(link_id)
     for r in rows:
         if r.get("viewed_at"): r["viewed_at"] = str(r["viewed_at"])
@@ -422,12 +441,21 @@ def admin_views_for_link(request: Request, link_id: str):
 @app.post("/track/bank-click")
 @limiter.limit("60/minute")
 def track_bank_click(request: Request, body: dict):
-    link_id = body.get("link_id", "")
-    bank = body.get("bank", "")
-    if link_id and bank:
-        ua = request.headers.get("user-agent", "")
-        device = _detect_device(ua)
-        log_page_view(link_id, get_remote_address(request), ua, device, bank_clicked=bank)
+    ALLOWED_BANKS = {
+        "privat", "mono", "oschad", "ukrsib", "pumb",
+        "raiffeisen", "ukrgas", "credit_agricole", "sportbank",
+        "izibank", "sense", "other",
+        "share_success", "download_fallback", "share_error", "universal"
+    }
+    link_id = body.get("link_id", "").strip()
+    bank = body.get("bank", "").strip().lower()
+    if not link_id or not re.match(r"^[A-Za-z0-9_-]{8,32}$", link_id):
+        return {"ok": False}
+    if bank not in ALLOWED_BANKS:
+        return {"ok": False}
+    ua = request.headers.get("user-agent", "")
+    device = _detect_device(ua)
+    log_page_view(link_id, get_remote_address(request), ua, device, bank_clicked=bank)
     return {"ok": True}
 
 
@@ -435,7 +463,7 @@ def track_bank_click(request: Request, body: dict):
 
 @app.get("/admin/links-log")
 def admin_links_log(request: Request, limit: int = 50):
-    _require_admin(request)
+    _require_role(request, "admin")
     rows = pg_query(
         "SELECT * FROM payment_links_log ORDER BY created_at DESC LIMIT %s",
         (min(limit, 200),), fetchall=True
@@ -451,12 +479,12 @@ def admin_links_log(request: Request, limit: int = 50):
 
 @app.get("/admin/managers")
 def admin_list_managers(request: Request):
-    _require_admin(request)
+    _require_role(request, "admin")
     return list_managers()
 
 @app.post("/admin/managers")
 def admin_create_manager(request: Request, body: dict):
-    _require_admin(request)
+    _require_role(request, "admin")
     username = body.get("username", "").strip()
     password = body.get("password", "")
     name = body.get("name", "").strip()
@@ -473,14 +501,14 @@ def admin_create_manager(request: Request, body: dict):
 
 @app.delete("/admin/managers/{manager_id}")
 def admin_delete_manager(request: Request, manager_id: int):
-    _require_admin(request)
+    _require_role(request, "admin")
     delete_manager(manager_id)
     logger.info("MANAGER_DELETED id=%s", manager_id)
     return {"ok": True}
 
 @app.put("/admin/managers/{manager_id}/toggle")
 def admin_toggle_manager(request: Request, manager_id: int, body: dict):
-    _require_admin(request)
+    _require_role(request, "admin")
     toggle_manager(manager_id, body.get("is_active", True))
     return {"ok": True}
 
@@ -592,7 +620,7 @@ def admin_page(request: Request):
 
 @app.get("/admin/preview", response_class=HTMLResponse)
 def admin_preview(request: Request):
-    _require_admin(request)
+    _require_role(request, "admin")
     settings = get_settings()
     logo_fn = settings.get("logo_filename", "")
     logo_url = f"/static/{logo_fn}" if logo_fn else ""

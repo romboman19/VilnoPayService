@@ -7,6 +7,8 @@ from pathlib import Path
 import bcrypt
 import psycopg2
 import psycopg2.extras
+from psycopg2 import pool as pg_pool
+from contextlib import contextmanager
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://vilnopay:vilnopay@postgres:5432/vilnopay")
 ADMIN_INIT_USER = os.getenv("ADMIN_INIT_USER", "admin")
@@ -14,52 +16,61 @@ ADMIN_INIT_PASS = os.getenv("ADMIN_INIT_PASS", "")
 
 logger = logging.getLogger("vilnopay.db")
 
+_pool = None
 
+def _get_pool():
+    global _pool
+    if _pool is None:
+        _pool = pg_pool.ThreadedConnectionPool(
+            minconn=2,
+            maxconn=10,
+            dsn=DATABASE_URL
+        )
+    return _pool
+
+@contextmanager
 def get_pg():
-    conn = psycopg2.connect(DATABASE_URL)
+    p = _get_pool()
+    conn = p.getconn()
     conn.autocommit = True
-    return conn
+    try:
+        yield conn
+    finally:
+        p.putconn(conn)
 
 
 def pg_query(sql, params=None, fetchone=False, fetchall=False):
-    conn = get_pg()
-    try:
+    with get_pg() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(sql, params)
             if fetchone:
                 return cur.fetchone()
             if fetchall:
                 return cur.fetchall()
-    finally:
-        conn.close()
 
 
 def pg_execute(sql, params=None):
-    conn = get_pg()
-    try:
+    with get_pg() as conn:
         with conn.cursor() as cur:
             cur.execute(sql, params)
-    finally:
-        conn.close()
 
 
 def init_db():
     """Створити таблиці та початкового адміна."""
     schema_path = Path(__file__).parent / "schema.sql"
     if schema_path.exists():
-        conn = get_pg()
-        try:
-            conn.autocommit = False
-            with conn.cursor() as cur:
-                cur.execute(schema_path.read_text())
-            conn.commit()
-            logger.info("DB schema applied")
-        except Exception as e:
-            conn.rollback()
-            logger.warning("Schema apply (may already exist): %s", e)
-        finally:
-            conn.autocommit = True
-            conn.close()
+        with get_pg() as conn:
+            try:
+                conn.autocommit = False
+                with conn.cursor() as cur:
+                    cur.execute(schema_path.read_text())
+                conn.commit()
+                logger.info("DB schema applied")
+            except Exception as e:
+                conn.rollback()
+                logger.warning("Schema apply (may already exist): %s", e)
+            finally:
+                conn.autocommit = True
 
     # Міграції для існуючих БД
     _migrate()
@@ -163,7 +174,7 @@ def validate_api_key(key: str | None) -> dict | None:
 
 
 def create_api_key(label: str = "default") -> tuple[str, dict]:
-    """Створити новий API-ключ. Повертає (plain_key, record). Зберігає plain_key в БД."""
+    """Створити новий API-ключ. Повертає (plain_key, record)."""
     plain_key = f"vpk_{secrets.token_urlsafe(32)}"
     key_hash = hash_api_key(plain_key)
     key_prefix = plain_key[:12]
@@ -396,17 +407,4 @@ def get_manager_api_key_record(manager_username):
     return row
 
 
-def store_manager_plain_key(manager_username, plain_key):
-    """Зберегти plain API ключ менеджера в Redis (для показу в кабінеті)."""
-    import redis as _redis, os as _os
-    _r = _redis.from_url(_os.getenv("REDIS_URL", "redis://redis:6379/0"), decode_responses=True)
-    _r.set(f"mgr_key:{manager_username}", plain_key)
 
-
-def get_manager_plain_key(manager_username):
-    """Отримати plain API ключ менеджера з PostgreSQL."""
-    row = pg_query(
-        "SELECT plain_key FROM api_keys WHERE label = %s AND is_active = TRUE ORDER BY created_at DESC LIMIT 1",
-        (f"manager_{manager_username}",), fetchone=True
-    )
-    return row["plain_key"] if row and row.get("plain_key") else None
