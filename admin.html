@@ -57,6 +57,7 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 .color-preview{width:36px;height:36px;border-radius:8px;border:1px solid var(--border);flex-shrink:0}
 .color-hex{font-family:"SF Mono",monospace;font-size:13px;width:100px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;outline:none}
 .color-hex:focus{border-color:var(--blue)}
+.tab:focus-visible,.btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}.tab:focus:not(:focus-visible),.btn:focus:not(:focus-visible){outline:none}
 </style>
 </head>
 <body>
@@ -105,14 +106,17 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <option value="liqpay">LiqPay</option>
 </select></div>
 <div id="provider-fields" style="display:none">
-<div class="fg"><label>LiqPay Public Key</label><input id="rcv-lp-pub" placeholder="i00000000000" class="mono"></div>
+<div style="background:#F9FAFB;border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:4px;display:flex;flex-direction:column;gap:12px">
+<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Налаштування LiqPay</div>
+<div class="fg" style="margin-bottom:0"><label>LiqPay Public Key</label><input id="rcv-lp-pub" placeholder="i00000000000" class="mono"></div>
 <div class="fg"><label>LiqPay Private Key</label><input id="rcv-lp-priv" type="password" placeholder="xxxxxxxxxxxxxxxx" class="mono"><div style="font-size:11px;color:var(--muted);margin-top:4px">Зашифровано. При редагуваннi — залиште порожнiм щоб не змiнювати.</div></div>
 <div class="fg"><label>Режим вiдображення</label><select id="rcv-lp-mode">
 <option value="widget">Вiджет (вбудований на сторiнку)</option>
 <option value="redirect">Кнопка "Онлайн оплата" (redirect на LiqPay)</option>
 </select></div>
 
-<div class="fg"><label><input type="checkbox" id="rcv-lp-sandbox"> Sandbox (тестовий режим)</label></div>
+<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:8px;padding:8px 0"><input type="checkbox" id="rcv-lp-sandbox"> Sandbox (тестовий режим)</label>
+</div>
 </div>
 <div class="err" id="rcv-err"></div>
 <div class="flex mt"><button class="btn btn-green" onclick="saveRcv()">Зберегти</button>
@@ -460,7 +464,7 @@ function renderBlockOrder(order){
   order.forEach((b,i)=>{
     const d=document.createElement('div');
     d.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card)';
-    d.innerHTML=`<span style="color:var(--muted)">${i+1}.</span> ${labels[b]||b}<span style="margin-left:auto;cursor:pointer;color:var(--muted)" onclick="moveBlock('${b}',-1)">↑</span><span style="cursor:pointer;color:var(--muted)" onclick="moveBlock('${b}',1)">↓</span>`;
+    d.innerHTML=`<span style="color:var(--muted);min-width:18px">${i+1}.</span><span style="flex:1;font-size:14px;font-weight:500">${labels[b]||b}</span><button onclick="moveBlock('${b}',-1)" aria-label="Вгору" style="min-width:36px;height:36px;border:1px solid var(--border);border-radius:6px;background:var(--card);cursor:pointer;font-size:16px">↑</button><button onclick="moveBlock('${b}',1)" aria-label="Вниз" style="min-width:36px;height:36px;border:1px solid var(--border);border-radius:6px;background:var(--card);cursor:pointer;font-size:16px">↓</button>`;
     el.appendChild(d);
   });
 }

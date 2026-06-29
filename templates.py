@@ -176,7 +176,9 @@ def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
     # Реквізити блок
     requisites_block = f"""<div class="section">
 <div class="sec-label">Реквізити для переказу</div>
+<div class="req-container">
 {reqs}
+</div>
 <button class="copy-all" onclick="copyAll(this)">Скопіювати всі реквізити</button>
 </div>"""
 
@@ -218,7 +220,7 @@ body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif
 /* Amount block */
 .amount-block{{text-align:center;padding:20px 16px;background:var(--card);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh);margin-bottom:10px}}
 .amount-label{{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}}
-.amount-value{{font-size:32px;font-weight:800;color:var(--primary);letter-spacing:-1px;line-height:1}}
+.amount-value{{font-size:clamp(20px,7.5vw,36px);font-weight:800;color:var(--primary);letter-spacing:-.5px;line-height:1.1;word-break:break-all}}
 .amount-purpose{{font-size:13px;color:var(--muted);margin-top:6px}}
 
 /* Card section */
@@ -228,7 +230,8 @@ body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif
 
 /* Pay button */
 .pay-btn{{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 20px;border-radius:var(--rs);border:none;background:var(--primary);color:#fff;font-size:15px;font-weight:600;letter-spacing:-.01em;cursor:pointer;transition:all var(--t);font-family:inherit;text-decoration:none}}
-.pay-btn:active{{transform:scale(.97)}}
+.pay-btn:hover:not(:active){{filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 6px 16px rgba(29,111,66,.30)}}
+.pay-btn:active{{transform:scale(.97) translateY(0);filter:none;box-shadow:none}}
 .pay-btn.sharing{{opacity:.6}}
 .pay-btn svg{{flex-shrink:0}}
 
@@ -260,20 +263,20 @@ body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif
 .copy-field{{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all var(--t)}}
 .copy-field:active{{transform:scale(.86)}}
 .copy-field.ok{{color:var(--primary);border-color:var(--primary);background:var(--primary-lt)}}
-.copy-all{{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:20px;height:52px;border-radius:var(--rs);border:1px solid var(--border);background:transparent;font-size:15px;font-weight:600;color:var(--text);cursor:pointer;transition:all var(--t);font-family:inherit}}
+.copy-all{{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:16px;min-height:52px;height:auto;padding:14px 20px;line-height:1.3;border-radius:var(--rs);border:1px solid var(--border);background:transparent;font-size:15px;font-weight:600;color:var(--text);cursor:pointer;transition:all var(--t);font-family:inherit}}
 .copy-all:active{{transform:scale(.97)}}
 .copy-all.ok{{color:var(--primary);border-color:var(--primary);background:var(--primary-lt)}}
 @media(max-width:768px){{.req-card-header{{grid-template-columns:1fr 44px}}.copy-field{{width:44px;height:44px;border-radius:12px}}.req-value{{font-size:17px}}.req-card{{padding:16px}}}}
-.footer{{text-align:center;font-size:11px;color:var(--muted);padding:16px 0 8px}}
+.footer{{text-align:center;font-size:11px;color:var(--muted);padding:20px 0 12px;border-top:1px solid var(--border);margin-top:8px}}
 
 /* Toast */
-#toast{{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--card);padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;max-width:90vw;text-align:center;opacity:0;transition:all .3s;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,.2)}}
+#toast{{position:fixed;bottom:max(20px,calc(env(safe-area-inset-bottom,0px) + 12px));left:50%;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--card);padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;max-width:90vw;text-align:center;opacity:0;transition:all .3s;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,.2)}}
 #toast.show{{opacity:1;transform:translateX(-50%) translateY(0)}}
-.invoice-block{{display:flex;align-items:center;gap:12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:14px 18px;margin:16px 0}}
+.invoice-block{{display:flex;align-items:center;gap:12px;background:var(--primary-lt);border:1px solid var(--primary-bd);border-radius:var(--rs);padding:14px 18px;margin:10px 0}}
 .invoice-icon{{font-size:24px}}
 .invoice-text{{display:flex;flex-direction:column;gap:4px}}
 .invoice-text span{{font-size:12px;color:#64748b}}
-.invoice-link{{font-size:14px;font-weight:600;color:#0284c7;text-decoration:none}}
+.invoice-link{{font-size:14px;font-weight:600;color:var(--primary);text-decoration:none}}
 .invoice-link:hover{{text-decoration:underline}}
 {cc}
 </style></head>
@@ -340,7 +343,7 @@ def liqpay_block_html(link_id, provider, amount_raw, liqpay_paid=None):
     if mode == "widget":
         return f'''<div class="section" id="liqpay-section">
 <div class="sec-label">\U0001F4B3 Оплата карткою</div>
-<div id="liqpay-widget-container" style="min-height:200px;display:flex;align-items:center;justify-content:center">
+<div id="liqpay-widget-container" style="min-height:200px;width:100%;overflow:visible">
 <div style="color:var(--muted);font-size:13px">Завантаження...</div>
 </div>
 <script src="https://static.liqpay.ua/libjs/checkout.js"></script>
@@ -464,7 +467,9 @@ def liqpay_result_html(tx, settings=None, logo_url=""):
     # Реквізити блок
     requisites_block = f"""<div class="section">
 <div class="sec-label">Реквізити для переказу</div>
+<div class="req-container">
 {reqs}
+</div>
 <button class="copy-all" onclick="copyAll(this)">Скопіювати всі реквізити</button>
 </div>"""
 
