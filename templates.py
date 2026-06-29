@@ -251,22 +251,22 @@ body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif
 .qr-tap{{font-size:12px;color:var(--primary);font-weight:500;margin-top:8px}}
 
 /* Requisites */
-.req-container{{display:flex;flex-direction:column;gap:14px}}
-.req-card{{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px 16px;transition:border-color var(--t)}}
+.req-container{{display:flex;flex-direction:column;gap:8px}}
+.req-card{{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 14px;transition:border-color var(--t)}}
 .req-card:hover{{border-color:var(--primary)}}
-.req-card-header{{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;margin-bottom:6px}}
-.req-label{{font-size:13px;color:var(--muted);font-weight:500}}
-.req-value{{display:block;width:100%;min-width:0;font-size:16px;font-weight:600;color:var(--text);line-height:1.4;word-break:normal;overflow-wrap:break-word;hyphens:none}}
-.req-card.mono .req-value{{font-family:'SF Mono','Fira Code',monospace;font-size:14px}}
+.req-card-header{{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin-bottom:3px}}
+.req-label{{font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em}}
+.req-value{{display:block;width:100%;min-width:0;font-size:15px;font-weight:600;color:var(--text);line-height:1.3;word-break:normal;overflow-wrap:break-word;hyphens:none}}
+.req-card.mono .req-value{{font-family:'SF Mono','Fira Code',monospace;font-size:13px}}
 .req-card.nowrap .req-value{{white-space:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}}
 .req-card.nowrap .req-value::-webkit-scrollbar{{display:none}}
-.copy-field{{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all var(--t)}}
+.copy-field{{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all var(--t)}}
 .copy-field:active{{transform:scale(.86)}}
 .copy-field.ok{{color:var(--primary);border-color:var(--primary);background:var(--primary-lt)}}
-.copy-all{{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:16px;min-height:52px;height:auto;padding:14px 20px;line-height:1.3;border-radius:var(--rs);border:1px solid var(--border);background:transparent;font-size:15px;font-weight:600;color:var(--text);cursor:pointer;transition:all var(--t);font-family:inherit}}
+.copy-all{{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:12px;min-height:44px;height:auto;padding:10px 16px;line-height:1.3;border-radius:var(--rs);border:1px solid var(--border);background:transparent;font-size:15px;font-weight:600;color:var(--text);cursor:pointer;transition:all var(--t);font-family:inherit}}
 .copy-all:active{{transform:scale(.97)}}
 .copy-all.ok{{color:var(--primary);border-color:var(--primary);background:var(--primary-lt)}}
-@media(max-width:768px){{.req-card-header{{grid-template-columns:1fr 44px}}.copy-field{{width:44px;height:44px;border-radius:12px}}.req-value{{font-size:17px}}.req-card{{padding:16px}}}}
+@media(max-width:768px){{.req-card-header{{grid-template-columns:1fr 38px}}.copy-field{{width:38px;height:38px;border-radius:8px}}.req-value{{font-size:16px}}.req-card{{padding:12px 14px}}}}
 .footer{{text-align:center;font-size:11px;color:var(--muted);padding:20px 0 12px;border-top:1px solid var(--border);margin-top:8px}}
 
 /* Toast */
