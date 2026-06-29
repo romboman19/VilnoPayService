@@ -311,7 +311,16 @@ async function loadHistory(){
 }
 
 (async()=>{
-  try{const r=await api('GET','/admin/me');showDash(r.username);}catch(e){showLogin();}
+  try{
+    const me=await api('GET','/admin/me');
+    if(me.role==='admin'){
+      // Адмін не має доступу до кабінету менеджера
+      showLogin();
+      E('l-err').textContent='Цей кабінет лише для менеджерів. Адмін-панель: /admin';
+      return;
+    }
+    showDash(me.username);
+  }catch(e){showLogin();}
 })();
 </script>
 </body>
