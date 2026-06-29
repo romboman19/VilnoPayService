@@ -45,6 +45,19 @@ logger = logging.getLogger("vilnopay")
 rdb = redis.from_url(REDIS_URL, decode_responses=True)
 
 
+
+def _cleanup_stale_invoices():
+    """Видалити PDF файли для яких немає Redis мета-запису."""
+    invoice_dir = Path("/data/invoices")
+    if not invoice_dir.exists():
+        return
+    for pdf_file in invoice_dir.glob("*.pdf"):
+        invoice_id = pdf_file.stem
+        if not rdb.exists(f"invoice_meta:{invoice_id}"):
+            pdf_file.unlink(missing_ok=True)
+            logger.info("STARTUP_CLEANUP removed stale invoice %s", invoice_id)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
@@ -55,6 +68,7 @@ async def lifespan(app: FastAPI):
         init_db(); logger.info("PostgreSQL OK")
     except Exception as e:
         logger.error("PostgreSQL failed: %s", e); raise SystemExit(1)
+    _cleanup_stale_invoices()
     yield
 
 app = FastAPI(title="VilnoPayService", version="4.0.0",
@@ -186,6 +200,8 @@ def _detect_device(ua: str) -> str:
 
 class GenerateRequest(BaseModel):
     receiver_key: str; purpose: str; amount: str | None = None
+    invoice_id: str | None = None
+    invoice_url: str | None = None
 
     @field_validator("receiver_key")
     @classmethod
@@ -212,8 +228,27 @@ class GenerateRequest(BaseModel):
         if float(v) <= 0: raise ValueError("Сума > 0")
         return v
 
+    @field_validator("invoice_id")
+    @classmethod
+    def val_inv_id(cls, v):
+        if v is None: return None
+        v = v.strip()
+        if not re.match(r"^[A-Za-z0-9_-]{16,32}$", v):
+            raise ValueError("Невірний invoice_id")
+        return v
+
+    @field_validator("invoice_url")
+    @classmethod
+    def val_inv_url(cls, v):
+        if v is None or v.strip() == "": return None
+        v = v.strip()
+        if len(v) > 500: raise ValueError("URL занадто довгий (max 500)")
+        if not re.match(r"^https://", v): raise ValueError("invoice_url має починатись з https://")
+        return v
+
 class GenerateResponse(BaseModel):
     pay_url: str; nbu_url: str; qr_base64: str; expires_in_hours: int
+    invoice_url: str | None = None
 
 class LoginRequest(BaseModel):
     username: str; password: str
@@ -558,6 +593,8 @@ def manager_create_payment(request: Request, body: dict):
     link_id = secrets.token_urlsafe(12)
     pay_url = f"{BASE_URL}/p/{link_id}"
     ttl = get_link_ttl()
+    invoice_id = body.get("invoice_id", "").strip() or None
+    invoice_url = body.get("invoice_url", "").strip() or None
     payload = {
         "receiver_key": receiver_key,
         "receiver": rcv["receiver"], "iban": rcv["iban"], "code": rcv["edrpou"],
@@ -566,6 +603,14 @@ def manager_create_payment(request: Request, body: dict):
         "created_at": int(time.time()),
         "created_ip": get_remote_address(request)
     }
+    # Invoice support
+    if invoice_id:
+        if not rdb.exists(f"invoice_meta:{invoice_id}"):
+            raise HTTPException(400, "invoice_id не знайдено або вже застарів")
+        payload["invoice_id"] = invoice_id
+        rdb.expire(f"invoice_meta:{invoice_id}", ttl * 3600)
+    if invoice_url:
+        payload["invoice_url"] = invoice_url
     rdb.setex(f"pay:{link_id}", ttl * 3600, json.dumps(payload))
     # Логувати з prefix менеджерського ключа
     mgr_key = pg_query("SELECT key_prefix FROM api_keys WHERE label = %s AND is_active = TRUE LIMIT 1",
@@ -574,7 +619,14 @@ def manager_create_payment(request: Request, body: dict):
     log_payment_link(link_id, receiver_key, purpose, amount, key_prefix, get_remote_address(request))
     qr_b64 = base64.b64encode(generate_qr_png_bytes(pay_url)).decode("ascii")
     logger.info("MANAGER_PAYMENT id=%s manager=%s rcv=%s", link_id, session.get("username"), receiver_key)
-    return {"pay_url": pay_url, "nbu_url": nbu_url, "qr_base64": qr_b64, "link_id": link_id}
+    # Invoice URL for response
+    response_invoice_url = None
+    if invoice_id:
+        response_invoice_url = f"{BASE_URL}/invoice/{link_id}"
+    elif invoice_url:
+        response_invoice_url = invoice_url
+    return {"pay_url": pay_url, "nbu_url": nbu_url, "qr_base64": qr_b64, "link_id": link_id,
+            "invoice_url": response_invoice_url}
 
 
 # ── Manager: History ────────────────────────────────────────
@@ -607,6 +659,23 @@ def manager_page(request: Request):
     return HTMLResponse("<h1>manager.html not found</h1>", status_code=500)
 
 
+
+@app.post("/admin/cleanup-invoices")
+def admin_cleanup_invoices(request: Request):
+    _require_role(request, "admin")
+    invoice_dir = Path("/data/invoices")
+    if not invoice_dir.exists():
+        return {"deleted": 0}
+    deleted = 0
+    for pdf_file in invoice_dir.glob("*.pdf"):
+        invoice_id = pdf_file.stem
+        if not rdb.exists(f"invoice_meta:{invoice_id}"):
+            pdf_file.unlink(missing_ok=True)
+            deleted += 1
+    logger.info("CLEANUP_INVOICES deleted=%d", deleted)
+    return {"deleted": deleted}
+
+
 # ── Admin HTML Page ──────────────────────────────────────────
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -630,8 +699,38 @@ def admin_preview(request: Request):
         "ФОП Тестовий Тест Тестович",
         "UA783052990000026005012107358",
         "За товар (тестове посилання)",
-        "1 500 ₴", qr_b64, 23, settings, logo_url, "preview", "2262003378", 23*3600
+        "1 500 ₴", qr_b64, 23, settings, logo_url, "preview", "2262003378", 23*3600, None
     ))
+
+
+
+# ══════════════════════════════════════════════════════════════
+# PUBLIC: /upload-invoice
+# ══════════════════════════════════════════════════════════════
+
+@app.post("/upload-invoice")
+@limiter.limit("5/minute")
+def upload_invoice(request: Request, file: UploadFile = File(...),
+                   x_api_key: str | None = Header(None, alias="X-API-Key")):
+    _check_api_key(x_api_key)
+    if file.content_type != "application/pdf":
+        raise HTTPException(400, "Дозволено тільки PDF")
+    contents = file.file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(400, "Максимальний розмір PDF: 5MB")
+    if not contents.startswith(b"%PDF-"):
+        raise HTTPException(400, "Файл не є валідним PDF")
+    invoice_id = secrets.token_urlsafe(16)
+    invoice_dir = Path("/data/invoices")
+    invoice_dir.mkdir(parents=True, exist_ok=True)
+    invoice_path = invoice_dir / f"{invoice_id}.pdf"
+    invoice_path.write_bytes(contents)
+    ttl = get_link_ttl()
+    rdb.setex(f"invoice_meta:{invoice_id}", ttl * 3600,
+              json.dumps({"original_name": (file.filename or "invoice.pdf")[:200],
+                          "size": len(contents), "created_at": int(time.time())}))
+    logger.info("INVOICE_UPLOADED id=%s size=%d ip=%s", invoice_id, len(contents), get_remote_address(request))
+    return {"invoice_id": invoice_id, "expires_in_hours": ttl}
 
 
 # ══════════════════════════════════════════════════════════════
@@ -668,6 +767,14 @@ def generate(request: Request, req: GenerateRequest,
             "created_at": int(time.time()),
             "created_ip": get_remote_address(request)
         }
+        # Invoice support
+        if req.invoice_id:
+            if not rdb.exists(f"invoice_meta:{req.invoice_id}"):
+                raise HTTPException(400, "invoice_id не знайдено або вже застарів")
+            payload["invoice_id"] = req.invoice_id
+            rdb.expire(f"invoice_meta:{req.invoice_id}", ttl * 3600)
+        if req.invoice_url:
+            payload["invoice_url"] = req.invoice_url
         rdb.setex(f"pay:{link_id}", ttl * 3600, json.dumps(payload))
 
         # Аудит-лог
@@ -677,13 +784,49 @@ def generate(request: Request, req: GenerateRequest,
         qr_b64 = base64.b64encode(generate_qr_png_bytes(pay_url)).decode("ascii")
         logger.info("LINK_CREATED id=%s rcv_key=%s amt=%s ip=%s",
                      link_id, req.receiver_key, req.amount or "-", get_remote_address(request))
+        # Invoice URL for response
+        response_invoice_url = None
+        if req.invoice_id:
+            response_invoice_url = f"{BASE_URL}/invoice/{link_id}"
+        elif req.invoice_url:
+            response_invoice_url = req.invoice_url
         return GenerateResponse(pay_url=pay_url, nbu_url=nbu_url,
-                                qr_base64=qr_b64, expires_in_hours=ttl)
+                                qr_base64=qr_b64, expires_in_hours=ttl,
+                                invoice_url=response_invoice_url)
     except HTTPException:
         raise
     except Exception:
         logger.exception("Generate error")
         raise HTTPException(500, "Внутрішня помилка")
+
+
+
+# ══════════════════════════════════════════════════════════════
+# PUBLIC: /invoice/{link_id}
+# ══════════════════════════════════════════════════════════════
+
+@app.get("/invoice/{link_id}")
+@limiter.limit("20/minute")
+def download_invoice(request: Request, link_id: str):
+    link_id = _validate_link_id(link_id)
+    raw = rdb.get(f"pay:{link_id}")
+    if not raw:
+        raise HTTPException(410, "Посилання вже неактивне")
+    data = json.loads(raw)
+    invoice_id = data.get("invoice_id")
+    if not invoice_id:
+        raise HTTPException(404, "До цього посилання не прикріплено рахунок")
+    meta_raw = rdb.get(f"invoice_meta:{invoice_id}")
+    if not meta_raw:
+        raise HTTPException(410, "Рахунок-фактура недоступна")
+    meta = json.loads(meta_raw)
+    invoice_path = Path("/data/invoices") / f"{invoice_id}.pdf"
+    if not invoice_path.exists():
+        raise HTTPException(404, "Файл рахунку не знайдено")
+    safe_name = re.sub(r"[^\w\-.]", "_", meta.get("original_name", "invoice.pdf"))
+    return FileResponse(path=str(invoice_path), media_type="application/pdf",
+                        filename=safe_name,
+                        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'})
 
 
 # ══════════════════════════════════════════════════════════════
@@ -724,5 +867,6 @@ def pay_page(request: Request, link_id: str):
 
     return HTMLResponse(content=pay_page_html(
         nbu_url, data["receiver"], data["iban"], data["purpose"],
-        amt_line, qr_b64, hours_left, settings, logo_url, link_id, data.get("code", ""), ttl_seconds
+        amt_line, qr_b64, hours_left, settings, logo_url, link_id, data.get("code", ""), ttl_seconds,
+        data.get("invoice_url") or (f"{BASE_URL}/invoice/{link_id}" if data.get("invoice_id") else None)
     ))

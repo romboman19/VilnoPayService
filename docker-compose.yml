@@ -17,8 +17,10 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/tmp
     volumes:
       - vilnopay_static:/data/static
+      - vilnopay_invoices:/data/invoices
     security_opt:
       - no-new-privileges:true
     deploy:
@@ -86,6 +88,7 @@ volumes:
   redis_data:
   pg_data:
   vilnopay_static:
+  vilnopay_invoices:
 
 networks:
   proxy:
