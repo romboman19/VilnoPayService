@@ -32,7 +32,8 @@ from db import (
     # Payment providers
     create_provider, get_provider_by_type, get_active_providers, list_providers,
     update_provider, delete_provider, get_provider_decrypted,
-    create_liqpay_tx, update_liqpay_tx, get_liqpay_tx_by_link, list_liqpay_transactions
+    create_liqpay_tx, update_liqpay_tx, get_liqpay_tx_by_link, list_liqpay_transactions,
+    get_receiver_liqpay_private
 )
 from templates import pay_page_html, expired_page_html, liqpay_result_html
 
@@ -259,6 +260,11 @@ class LoginRequest(BaseModel):
 
 class ReceiverCreate(BaseModel):
     name: str; receiver: str; iban: str; edrpou: str
+    liqpay_public_key: str = ""
+    liqpay_private_key: str = ""
+    liqpay_display_mode: str = ""
+    liqpay_pay_methods: str = '["card","privat24","wallet"]'
+    liqpay_sandbox: bool = False
     @field_validator("iban")
     @classmethod
     def val_iban(cls, v):
@@ -388,7 +394,12 @@ def admin_list_receivers(request: Request):
 @app.post("/admin/receivers")
 def admin_create_receiver(request: Request, body: ReceiverCreate):
     _require_role(request, "admin")
-    rcv = create_receiver(body.name, body.receiver, body.iban, body.edrpou)
+    rcv = create_receiver(body.name, body.receiver, body.iban, body.edrpou,
+                      liqpay_public_key=body.liqpay_public_key,
+                      liqpay_private_key=body.liqpay_private_key,
+                      liqpay_display_mode=body.liqpay_display_mode,
+                      liqpay_pay_methods=body.liqpay_pay_methods,
+                      liqpay_sandbox=body.liqpay_sandbox)
     for k in ("created_at", "updated_at"):
         if rcv.get(k): rcv[k] = str(rcv[k])
     logger.info("RECEIVER_CREATED key=%s name=%s", rcv["receiver_key"], body.name)
@@ -400,7 +411,16 @@ def admin_update_receiver(request: Request, receiver_key: str, body: ReceiverUpd
     existing = get_receiver_by_key(receiver_key)
     if not existing:
         raise HTTPException(404, "Отримувач не знайдений")
-    rcv = update_receiver(receiver_key, body.name, body.receiver, body.iban, body.edrpou, body.is_active)
+    update_receiver(receiver_key,
+        name=body.name, receiver=body.receiver, iban=body.iban, edrpou=body.edrpou,
+        is_active=body.is_active,
+        liqpay_public_key=body.liqpay_public_key,
+        liqpay_private_key=body.liqpay_private_key,
+        liqpay_display_mode=body.liqpay_display_mode,
+        liqpay_pay_methods=body.liqpay_pay_methods,
+        liqpay_sandbox=body.liqpay_sandbox
+    )
+    rcv = get_receiver_by_key(receiver_key)
     for k in ("created_at", "updated_at"):
         if rcv.get(k): rcv[k] = str(rcv[k])
     return rcv
@@ -722,18 +742,20 @@ def liqpay_checkout_data(request: Request, link_id: str):
     amount = pay_data.get("amount")
     if not amount:
         raise HTTPException(400, "Сума не вказана — LiqPay потребує суму")
-    providers = get_active_providers()
-    lp = next((p for p in providers if p["provider_type"] == "liqpay"), None)
-    if not lp:
-        raise HTTPException(404, "LiqPay не налаштований")
-    provider_full = get_provider_decrypted(lp["id"])
-    if not provider_full or not provider_full.get("private_key"):
+    # LiqPay налаштовується на отримувача
+    receiver_key = pay_data.get("receiver_key", "")
+    rcv = get_receiver_by_key(receiver_key) if receiver_key else None
+    if not rcv or not rcv.get("liqpay_public_key") or not rcv.get("liqpay_display_mode"):
+        raise HTTPException(404, "LiqPay не налаштований для цього отримувача")
+    private_key = get_receiver_liqpay_private(receiver_key)
+    if not private_key:
         raise HTTPException(500, "Ключі LiqPay не налаштовані")
+    lp = rcv  # використовуємо дані отримувача
     order_id = f"vp_{link_id}_{secrets.token_urlsafe(6)}"
-    create_liqpay_tx(link_id, order_id, lp["id"])
+    create_liqpay_tx(link_id, order_id, 0)  # provider_id=0 (сирота, бо прив'язка до отримувача)
     lp_params = {
         "version": 3,
-        "public_key": lp["public_key"],
+        "public_key": lp["liqpay_public_key"],
         "action": "pay",
         "amount": float(amount),
         "currency": "UAH",
@@ -743,10 +765,10 @@ def liqpay_checkout_data(request: Request, link_id: str):
         "server_url": f"{BASE_URL}/liqpay/callback",
         "result_url": f"{BASE_URL}/liqpay/result/{link_id}",
     }
-    if lp.get("is_sandbox"):
+    if lp.get("liqpay_sandbox"):
         lp_params["sandbox"] = 1
     try:
-        methods = json.loads(lp.get("pay_methods", "[]"))
+        methods = json.loads(lp.get("liqpay_pay_methods", "[]"))
         if methods:
             lp_params["paytypes"] = ",".join(methods)
     except (json.JSONDecodeError, TypeError):
@@ -757,9 +779,9 @@ def liqpay_checkout_data(request: Request, link_id: str):
     return {
         "data": data_b64,
         "signature": signature,
-        "public_key": lp["public_key"],
-        "display_mode": lp["display_mode"],
-        "is_sandbox": lp.get("is_sandbox", False)
+        "public_key": lp["liqpay_public_key"],
+        "display_mode": lp["liqpay_display_mode"],
+        "is_sandbox": lp.get("liqpay_sandbox", False)
     }
 
 
@@ -779,15 +801,21 @@ async def liqpay_callback(request: Request):
     order_id = decoded.get("order_id", "")
     if not order_id:
         raise HTTPException(400, "Missing order_id")
-    tx = pg_query("SELECT provider_id FROM liqpay_transactions WHERE order_id=%s",
+    tx = pg_query("SELECT provider_id, link_id FROM liqpay_transactions WHERE order_id=%s",
                   (order_id,), fetchone=True)
     if not tx:
         logger.warning("LIQPAY_CALLBACK unknown order=%s", order_id)
         raise HTTPException(404, "Unknown order_id")
-    provider = get_provider_decrypted(tx["provider_id"])
-    if not provider:
-        raise HTTPException(500, "Provider error")
-    if not liqpay_verify_callback(provider["private_key"], data, signature):
+    # Знайти отримувача через link_id
+    pay_raw = rdb.get(f"pay:{tx['link_id']}")
+    if not pay_raw:
+        raise HTTPException(404, "Payment link not found")
+    pay_info = json.loads(pay_raw)
+    receiver_key = pay_info.get("receiver_key", "")
+    private_key = get_receiver_liqpay_private(receiver_key)
+    if not private_key:
+        raise HTTPException(500, "Provider key error")
+    if not liqpay_verify_callback(private_key, data, signature):
         logger.warning("LIQPAY_CALLBACK invalid signature order=%s ip=%s",
                        order_id, get_remote_address(request))
         raise HTTPException(403, "Invalid signature")
@@ -1077,8 +1105,12 @@ def pay_page(request: Request, link_id: str):
     logo_url = f"/static/{logo_fn}" if logo_fn else ""
     logger.info("LOGO_CHECK fn=%s url=%s file_exists=%s", logo_fn, logo_url, (static_dir / logo_fn).exists() if logo_fn else False)
 
-    # Отримати активних провайдерів і block_order
-    active_providers = get_active_providers()
+    # Перевірити чи у отримувача налаштований LiqPay
+    receiver_key = data.get("receiver_key", "")
+    rcv_data = get_receiver_by_key(receiver_key) if receiver_key else None
+    active_providers = []
+    if rcv_data and rcv_data.get("liqpay_public_key") and rcv_data.get("liqpay_display_mode"):
+        active_providers = [{"provider_type": "liqpay", "display_mode": rcv_data.get("liqpay_display_mode",""), "public_key": rcv_data.get("liqpay_public_key",""), "pay_methods": rcv_data.get("liqpay_pay_methods","[]"), "is_sandbox": rcv_data.get("liqpay_sandbox",False)}]
     block_order_raw = settings.get("block_order", '["nbu_qr","liqpay","requisites"]')
     try:
         block_order = json.loads(block_order_raw)

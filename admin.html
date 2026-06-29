@@ -85,7 +85,6 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div class="tab" data-t="log">Лог посилань</div>
 <div class="tab" data-t="views">Перегляди</div>
 <div class="tab" data-t="mgrs">Менеджери</div>
-<div class="tab" data-t="prov">Провайдери</div>
 </div>
 
 <div class="panel active" id="p-rcv">
@@ -249,7 +248,7 @@ E('tabs').addEventListener('click',e=>{
   t.classList.add('active');E('p-'+t.dataset.t).classList.add('active');
 });
 
-function loadAll(){loadRcv();loadBrand();loadKeys();loadLog();loadViews();loadManagers();loadProviders();loadLiqpayTx();}
+function loadAll(){loadRcv();loadBrand();loadKeys();loadLog();loadViews();loadManagers();}
 
 // LOGO UPLOAD
 E('logo-file').addEventListener('change',async function(){
@@ -393,16 +392,16 @@ async function createManager(){
     if(r.api_key){
       alert('API ключ менеджера (збережіть!):\n\n'+r.api_key);
     }
-    E('mgr-user').value='';E('mgr-pass').value='';loadManagers();loadProviders();loadLiqpayTx();
+    E('mgr-user').value='';E('mgr-pass').value='';loadManagers();
   }
   catch(e){toast('Помилка: '+e.message);}
 }
 async function delManager(id){
   if(!confirm('Видалити менеджера?'))return;
-  try{await api('DELETE','/admin/managers/'+id);toast('Видалено');loadManagers();loadProviders();loadLiqpayTx();}catch(e){toast('Помилка: '+e.message);}
+  try{await api('DELETE','/admin/managers/'+id);toast('Видалено');loadManagers();}catch(e){toast('Помилка: '+e.message);}
 }
 async function toggleManager(id,active){
-  try{await api('PUT','/admin/managers/'+id+'/toggle',{is_active:active});toast(active?'Увімкнено':'Вимкнено');loadManagers();loadProviders();loadLiqpayTx();}catch(e){toast('Помилка: '+e.message);}
+  try{await api('PUT','/admin/managers/'+id+'/toggle',{is_active:active});toast(active?'Увімкнено':'Вимкнено');loadManagers();}catch(e){toast('Помилка: '+e.message);}
 }
 
 

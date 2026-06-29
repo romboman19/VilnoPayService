@@ -122,6 +122,12 @@ def _migrate():
             created_at      TIMESTAMPTZ DEFAULT NOW()
         )""",
         "CREATE INDEX IF NOT EXISTS idx_templates_manager ON payment_templates(manager_id)",
+        # LiqPay поля в receivers
+        "ALTER TABLE receivers ADD COLUMN IF NOT EXISTS liqpay_public_key TEXT DEFAULT ''",
+        "ALTER TABLE receivers ADD COLUMN IF NOT EXISTS liqpay_private_enc TEXT DEFAULT ''",
+        "ALTER TABLE receivers ADD COLUMN IF NOT EXISTS liqpay_display_mode VARCHAR(30) DEFAULT ''",
+        "ALTER TABLE receivers ADD COLUMN IF NOT EXISTS liqpay_pay_methods TEXT DEFAULT '[\"card\",\"privat24\",\"wallet\"]'",
+        "ALTER TABLE receivers ADD COLUMN IF NOT EXISTS liqpay_sandbox BOOLEAN DEFAULT FALSE",
         # Payment providers
         """CREATE TABLE IF NOT EXISTS payment_providers (
             id              SERIAL PRIMARY KEY,
@@ -447,6 +453,18 @@ def get_manager_api_key_record(manager_username):
 
 
 
+
+
+# ── Receiver LiqPay decryption ───────────────────────────────
+
+def get_receiver_liqpay_private(receiver_key):
+    """Повертає розшифрований LiqPay private key отримувача (тiльки для підпису)."""
+    row = pg_query(
+        "SELECT liqpay_private_enc FROM receivers WHERE receiver_key = %s",
+        (receiver_key,), fetchone=True)
+    if row and row.get("liqpay_private_enc"):
+        return decrypt_private_key(row["liqpay_private_enc"])
+    return ""
 
 
 # ── Payment Providers (LiqPay) ──────────────────────────────

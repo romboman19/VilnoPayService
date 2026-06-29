@@ -67,6 +67,12 @@ CREATE TABLE IF NOT EXISTS receivers (
     iban            VARCHAR(34) NOT NULL,            -- UA + 27 цифр
     edrpou          VARCHAR(10) NOT NULL,            -- ЄДРПОУ / ІПН
     is_active       BOOLEAN DEFAULT TRUE,
+    -- LiqPay (опцiонально — якщо отримувач має платiжний акаунт)
+    liqpay_public_key   TEXT DEFAULT '',
+    liqpay_private_enc  TEXT DEFAULT '',       -- Fernet encrypted
+    liqpay_display_mode VARCHAR(30) DEFAULT '',  -- 'widget'|'button'|'redirect'|'' (порожньо = вимкнено)
+    liqpay_pay_methods  TEXT DEFAULT '["card","privat24","wallet"]',
+    liqpay_sandbox      BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMPTZ DEFAULT NOW(),
     updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
