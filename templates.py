@@ -101,6 +101,7 @@ def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
 
     receiver = _e(receiver); iban = _e(iban)
     purpose = _e(purpose); amount_line = _e(amount_line)
+    nbu = _e(nbu_url)
     code_e = _e(code)
 
     # Форматування суми
