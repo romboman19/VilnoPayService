@@ -198,6 +198,7 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 
 <script>
 const E=id=>document.getElementById(id);
+function fmtKiev(s){if(!s||s==='—')return '—';try{var d=new Date(s+'Z');return d.toLocaleString('uk-UA',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){return s;}}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 function toast(m){const t=E('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 async function api(method,url,body){
@@ -344,7 +345,7 @@ async function loadLog(){
     if(!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає записів</p>';return;}
     let h='<div class="resp-table"><table><thead><tr><th>ID</th><th>Отримувач</th><th>Призначення</th><th>Сума</th><th>API ключ</th><th>IP</th><th>Час</th></tr></thead><tbody>';
     for(const r of rows){
-      h+=`<tr><td class="mono">${esc(r.link_id)}</td><td class="mono">${esc(r.receiver_key)}</td><td>${esc(r.purpose)}</td><td>${esc(r.amount||'—')}</td><td class="mono">${esc(r.api_key_prefix||'—')}</td><td>${esc(r.created_ip||'—')}</td><td>${r.created_at||'—'}</td></tr>`;
+      h+=`<tr><td class="mono">${esc(r.link_id)}</td><td class="mono">${esc(r.receiver_key)}</td><td>${esc(r.purpose)}</td><td>${esc(r.amount||'—')}</td><td class="mono">${esc(r.api_key_prefix||'—')}</td><td>${esc(r.created_ip||'—')}</td><td>${fmtKiev(r.created_at)}</td></tr>`;
     }
     h+='</tbody></table></div>';el.innerHTML=h;
   }catch(e){toast('Помилка: '+e.message);}
@@ -360,7 +361,7 @@ async function loadViews(){
       const dev=r.device_type||'—';
       const bank=r.bank_clicked?esc(r.bank_clicked):'<span style="color:var(--muted)">—</span>';
       const ua=r.user_agent?esc(r.user_agent.substring(0,50))+(r.user_agent.length>50?'…':''):'—';
-      h+=`<tr><td class="mono">${esc(r.link_id)}</td><td>${esc(r.viewer_ip||'—')}</td><td>${dev}</td><td>${bank}</td><td style="font-size:11px;color:var(--muted)">${ua}</td><td>${r.viewed_at||'—'}</td></tr>`;
+      h+=`<tr><td class="mono">${esc(r.link_id)}</td><td>${esc(r.viewer_ip||'—')}</td><td>${dev}</td><td>${bank}</td><td style="font-size:11px;color:var(--muted)">${ua}</td><td>${fmtKiev(r.viewed_at)}</td></tr>`;
     }
     h+='</tbody></table></div>';el.innerHTML=h;
   }catch(e){toast('Помилка: '+e.message);}
@@ -374,7 +375,7 @@ async function loadManagers(){
     let h='<div class="resp-table"><table><thead><tr><th>ID</th><th>Логін</th><th>Статус</th><th>Створено</th><th></th></tr></thead><tbody>';
     for(const r of rows){
       const b=r.is_active?'<span class="badge badge-g">Активний</span>':'<span class="badge badge-r">Вимкнено</span>';
-      h+=`<tr><td>${r.id}</td><td>${esc(r.username)}</td><td>${b}</td><td>${r.created_at||'—'}</td><td><button class="btn btn-outline btn-sm" onclick="toggleManager(${r.id},${!r.is_active})">${r.is_active?'Вимкнути':'Увімкнути'}</button> <button class="btn btn-red btn-sm" onclick="delManager(${r.id})">🗑</button></td></tr>`;
+      h+=`<tr><td>${r.id}</td><td>${esc(r.username)}</td><td>${b}</td><td>${fmtKiev(r.created_at)}</td><td><button class="btn btn-outline btn-sm" onclick="toggleManager(${r.id},${!r.is_active})">${r.is_active?'Вимкнути':'Увімкнути'}</button> <button class="btn btn-red btn-sm" onclick="delManager(${r.id})">🗑</button></td></tr>`;
     }
     h+='</tbody></table></div>';el.innerHTML=h;
   }catch(e){toast('Помилка: '+e.message);}

@@ -365,14 +365,12 @@ def delete_template(template_id, manager_id):
 # ── Manager payment history ───────────────────────────────
 
 def list_manager_payments(manager_username, limit=50):
-    """Історія платежів менеджера (по api_key_prefix або по created_ip)."""
+    """Історія платежів менеджера — шукає по api_key_prefix LIKE mgr_%username%."""
     rows = pg_query(
-        """SELECT pl.*, au.username as manager FROM payment_links_log pl
-           JOIN api_keys ak ON pl.api_key_prefix = ak.key_prefix
-           JOIN admin_users au ON ak.label LIKE 'manager_%%' AND au.username = REPLACE(ak.label, 'manager_', '')
-           WHERE au.username = %s
-           ORDER BY pl.created_at DESC LIMIT %s""",
-        (manager_username, min(limit, 200)), fetchall=True
+        """SELECT * FROM payment_links_log
+           WHERE api_key_prefix LIKE %s
+           ORDER BY created_at DESC LIMIT %s""",
+        (f"mgr_%{manager_username}%", min(limit, 200)), fetchall=True
     ) or []
     for r in rows:
         if r.get("created_at"):
