@@ -163,7 +163,7 @@ def validate_api_key(key: str | None) -> dict | None:
 
 
 def create_api_key(label: str = "default") -> tuple[str, dict]:
-    """Створити новий API-ключ. Повертає (plain_key, record)."""
+    """Створити новий API-ключ. Повертає (plain_key, record). Зберігає plain_key в БД."""
     plain_key = f"vpk_{secrets.token_urlsafe(32)}"
     key_hash = hash_api_key(plain_key)
     key_prefix = plain_key[:12]
@@ -380,3 +380,33 @@ def list_manager_payments(manager_username, limit=50):
         if r.get("created_at"):
             r["created_at"] = str(r["created_at"])
     return rows
+
+# ── Manager API key retrieval ──────────────────────────────
+
+def get_manager_api_key_record(manager_username):
+    """Повертає запис API ключа менеджера (без повного ключа)."""
+    row = pg_query(
+        "SELECT id, key_prefix, label, is_active, last_used_at, created_at FROM api_keys WHERE label = %s ORDER BY created_at DESC LIMIT 1",
+        (f"manager_{manager_username}",), fetchone=True
+    )
+    if row:
+        for k in ("last_used_at", "created_at"):
+            if row.get(k):
+                row[k] = str(row[k])
+    return row
+
+
+def store_manager_plain_key(manager_username, plain_key):
+    """Зберегти plain API ключ менеджера в Redis (для показу в кабінеті)."""
+    import redis as _redis, os as _os
+    _r = _redis.from_url(_os.getenv("REDIS_URL", "redis://redis:6379/0"), decode_responses=True)
+    _r.set(f"mgr_key:{manager_username}", plain_key)
+
+
+def get_manager_plain_key(manager_username):
+    """Отримати plain API ключ менеджера з PostgreSQL."""
+    row = pg_query(
+        "SELECT plain_key FROM api_keys WHERE label = %s AND is_active = TRUE ORDER BY created_at DESC LIMIT 1",
+        (f"manager_{manager_username}",), fetchone=True
+    )
+    return row["plain_key"] if row and row.get("plain_key") else None

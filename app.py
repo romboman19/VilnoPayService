@@ -28,7 +28,7 @@ from db import (
     log_payment_link, log_page_view, list_page_views, list_page_views_for_link,
     cleanup_expired_sessions,
     create_manager, list_managers, delete_manager, toggle_manager,
-    create_template, list_templates, delete_template,
+    create_template, list_templates, delete_template
 )
 from templates import pay_page_html, expired_page_html
 
@@ -94,15 +94,12 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 # ── Helpers ──────────────────────────────────────────────────
 
 def _check_api_key(key: str | None):
-    cnt = pg_query("SELECT COUNT(*) as cnt FROM api_keys WHERE is_active = TRUE", fetchone=True)
-    if cnt and cnt["cnt"] > 0:
-        if not key:
-            raise HTTPException(401, "API key required")
-        result = validate_api_key(key)
-        if not result:
-            raise HTTPException(401, "Invalid API key")
-        return result
-    return {"key_prefix": "none", "label": "no-auth"}
+    if not key or not key.startswith("vpk_"):
+        raise HTTPException(401, "API key required (vpk_...)")
+    result = validate_api_key(key)
+    if not result:
+        raise HTTPException(401, "Invalid API key")
+    return result
 
 def _require_admin(request: Request) -> dict:
     token = request.cookies.get("session_token")
@@ -363,23 +360,6 @@ def admin_list_api_keys(request: Request):
             if r.get(k): r[k] = str(r[k])
     return rows
 
-@app.post("/admin/api-keys")
-def admin_create_api_key(request: Request, body: ApiKeyCreate):
-    _require_admin(request)
-    plain_key, record = create_api_key(body.label)
-    for k in ("last_used_at", "created_at"):
-        if record.get(k): record[k] = str(record[k])
-    logger.info("API_KEY_CREATED prefix=%s label=%s", record["key_prefix"], body.label)
-    return {"ok": True, "key": plain_key, **record}
-
-@app.delete("/admin/api-keys/{key_id}")
-def admin_revoke_api_key(request: Request, key_id: int):
-    _require_admin(request)
-    revoke_api_key(key_id)
-    logger.info("API_KEY_REVOKED id=%s", key_id)
-    return {"ok": True}
-
-
 # ── Admin Logo Upload ───────────────────────────────────────
 
 @app.post("/admin/upload-logo")
@@ -545,10 +525,10 @@ def manager_create_payment(request: Request, body: dict):
         "created_ip": get_remote_address(request)
     }
     rdb.setex(f"pay:{link_id}", ttl * 3600, json.dumps(payload))
-    # Знайти API ключ менеджера для логування
+    # Логувати з prefix менеджерського ключа
     mgr_key = pg_query("SELECT key_prefix FROM api_keys WHERE label = %s AND is_active = TRUE LIMIT 1",
                        (f"manager_{session.get('username','')}",), fetchone=True)
-    key_prefix = mgr_key["key_prefix"] if mgr_key else f"mgr_{session.get('username','')[:8]}"
+    key_prefix = mgr_key["key_prefix"] if mgr_key else "mgr"
     log_payment_link(link_id, receiver_key, purpose, amount, key_prefix, get_remote_address(request))
     qr_b64 = base64.b64encode(generate_qr_png_bytes(pay_url)).decode("ascii")
     logger.info("MANAGER_PAYMENT id=%s manager=%s rcv=%s", link_id, session.get("username"), receiver_key)
@@ -570,6 +550,7 @@ def manager_history(request: Request, limit: int = 50):
 def manager_receivers(request: Request):
     _require_admin(request)
     return list_receivers()
+
 
 
 # ── Manager HTML ────────────────────────────────────────────

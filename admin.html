@@ -167,10 +167,9 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 </div>
 
 <div class="panel" id="p-keys">
-<div class="card"><h2>API ключі</h2><div id="keys-tbl"></div>
-<div class="flex mt"><input id="ak-lbl" placeholder="Назва ключа" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit">
-<button class="btn btn-blue" onclick="createKey()">Створити</button></div>
-<div class="key-box" id="new-key" style="display:none"></div>
+<div class="card"><h2>API ключі менеджерів</h2>
+<p style="color:var(--muted);font-size:13px;margin-bottom:12px">Ключі генеруються автоматично при створенні менеджера</p>
+<div id="keys-tbl"></div>
 </div>
 </div>
 
@@ -316,26 +315,13 @@ async function loadKeys(){
   try{
     const rows=await api('GET','/admin/api-keys');const el=E('keys-tbl');
     if(!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає ключів</p>';return;}
-    let h='<div class="resp-table"><table><thead><tr><th>Префікс</th><th>Назва</th><th>Статус</th><th>Останнє використання</th><th style="white-space:nowrap"></th></tr></thead><tbody>';
+    let h='<div class="resp-table"><table><thead><tr><th>Префікс</th><th>Назва</th><th>Статус</th><th>Останнє використання</th></tr></thead><tbody>';
     for(const r of rows){
       const b=r.is_active?'<span class="badge badge-g">Активний</span>':'<span class="badge badge-r">Відкликано</span>';
-      h+=`<tr><td class="mono">${esc(r.key_prefix)}...</td><td>${esc(r.label)}</td><td>${b}</td><td>${fmtKiev(r.last_used_at)}</td><td style="white-space:nowrap">${r.is_active?'<button class="btn btn-red btn-sm" onclick="revokeKey('+r.id+')">Відкликати</button>':''}</td></tr>`;
+      h+=`<tr><td class="mono">${esc(r.key_prefix)}...</td><td>${esc(r.label)}</td><td>${b}</td><td>${fmtKiev(r.last_used_at)}</td></tr>`;
     }
     h+='</tbody></table></div>';el.innerHTML=h;
   }catch(e){toast('Помилка: '+e.message);}
-}
-async function createKey(){
-  const label=E('ak-lbl').value.trim()||'default';
-  try{
-    const r=await api('POST','/admin/api-keys',{label});
-    E('new-key').style.display='block';
-    E('new-key').innerHTML='⚠️ Збережіть ключ — він більше не буде показаний:<br><strong>'+esc(r.key)+'</strong>';
-    E('ak-lbl').value='';toast('Ключ створено');loadKeys();
-  }catch(e){toast('Помилка: '+e.message);}
-}
-async function revokeKey(id){
-  if(!confirm('Відкликати ключ?'))return;
-  try{await api('DELETE','/admin/api-keys/'+id);toast('Відкликано');loadKeys();}catch(e){toast('Помилка: '+e.message);}
 }
 
 // LOG
