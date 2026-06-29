@@ -830,10 +830,15 @@ def download_invoice(request: Request, link_id: str):
     invoice_path = Path("/data/invoices") / f"{invoice_id}.pdf"
     if not invoice_path.exists():
         raise HTTPException(404, "Файл рахунку не знайдено")
-    safe_name = re.sub(r"[^\w\-.]", "_", meta.get("original_name", "invoice.pdf"))
+    # ASCII-only filename for header (latin-1 safe)
+    import urllib.parse
+    safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", meta.get("original_name", "invoice.pdf"))
+    if not safe_name or safe_name == ".":
+        safe_name = "invoice.pdf"
+    encoded_name = urllib.parse.quote(meta.get("original_name", "invoice.pdf"), safe="")
     return FileResponse(path=str(invoice_path), media_type="application/pdf",
                         filename=safe_name,
-                        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'})
+                        headers={"Content-Disposition": f"attachment; filename=\"{safe_name}\"; filename*=UTF-8''{encoded_name}"})
 
 
 # ══════════════════════════════════════════════════════════════
