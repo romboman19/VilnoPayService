@@ -100,7 +100,7 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
 <label style="font-weight:600">Платiжний провайдер</label>
 </div>
-<div class="fg"><label>Провайдер</label><select id="rcv-provider" onchange="toggleProviderFields()">
+<div class="fg"><label>Провайдер</label><select id="rcv-provider">
 <option value="">Не використовувати</option>
 <option value="liqpay">LiqPay</option>
 </select></div>
@@ -116,16 +116,16 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <option value="gpay_apay">Google Pay + Apple Pay (inline)</option>
 </select></div>
 <div class="fg"><label>Методи оплати</label>
-<div id="rcv-lp-methods-checks" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
-<label style="font-size:13px;font-weight:400;cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" class="lp-method" value="card"> Картка</label>
-<label style="font-size:13px;font-weight:400;cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" class="lp-method" value="gpay"> Google Pay</label>
-<label style="font-size:13px;font-weight:400;cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" class="lp-method" value="apay"> Apple Pay</label>
-<label style="font-size:13px;font-weight:400;cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" class="lp-method" value="privat24"> Privat24</label>
-<label style="font-size:13px;font-weight:400;cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" class="lp-method" value="qr"> QR-код</label>
-<label style="font-size:13px;font-weight:400;cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" class="lp-method" value="moment_part"> Розстрочка</label>
-<label style="font-size:13px;font-weight:400;cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" class="lp-method" value="paypart"> Оплата частинами</label>
-<label style="font-size:13px;font-weight:400;cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" class="lp-method" value="cash"> Готiвкою</label>
-<label style="font-size:13px;font-weight:400;cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" class="lp-method" value="invoice"> Рахунок на e-mail</label>
+<div id="rcv-lp-methods-checks" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:8px;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:10px">
+<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="card"> 💳 Картка</label>
+<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="gpay"> 🟢 Google Pay</label>
+<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="apay"> 🍎 Apple Pay</label>
+<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="privat24"> 🏦 Privat24</label>
+<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="qr"> 📱 QR-код</label>
+<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="moment_part"> 📅 Розстрочка</label>
+<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="paypart"> ✂️ Оплата частинами</label>
+<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="cash"> 💵 Готiвкою</label>
+<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="invoice"> 📧 Рахунок на e-mail</label>
 </div>
 <div style="font-size:11px;color:var(--muted);margin-top:4px">Якщо нічого не обрано — використовуються налаштування магазину LiqPay</div></div>
 <div class="fg"><label><input type="checkbox" id="rcv-lp-sandbox"> Sandbox (тестовий режим)</label></div>
@@ -234,6 +234,10 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 
 <script>
 const E=id=>document.getElementById(id);
+document.addEventListener('DOMContentLoaded',function(){
+  var sel=E('rcv-provider');
+  if(sel) sel.addEventListener('change',toggleProviderFields);
+});
 function fmtKiev(s){if(!s||s==='—')return '—';try{var d=new Date(s+'Z');return d.toLocaleString('uk-UA',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){return s;}}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 function toast(m){const t=E('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
