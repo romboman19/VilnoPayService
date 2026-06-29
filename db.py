@@ -247,36 +247,52 @@ def revoke_api_key(key_id: int):
 
 # ── Receivers ────────────────────────────────────────────────
 
-def create_receiver(name, receiver, iban, edrpou) -> dict:
+def create_receiver(name, receiver, iban, edrpou,
+                  liqpay_public_key="", liqpay_private_key="", liqpay_display_mode="",
+                  liqpay_pay_methods='["card","privat24","wallet"]', liqpay_sandbox=False) -> dict:
     receiver_key = f"rcv_{secrets.token_urlsafe(8)}"
+    enc = encrypt_private_key(liqpay_private_key) if liqpay_private_key else ""
     pg_execute(
-        """INSERT INTO receivers (receiver_key, name, receiver, iban, edrpou)
-           VALUES (%s, %s, %s, %s, %s)""",
-        (receiver_key, name, receiver, iban, edrpou)
+        """INSERT INTO receivers (receiver_key, name, receiver, iban, edrpou,
+           liqpay_public_key, liqpay_private_enc, liqpay_display_mode, liqpay_pay_methods, liqpay_sandbox)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+        (receiver_key, name, receiver, iban, edrpou,
+         liqpay_public_key, enc, liqpay_display_mode, liqpay_pay_methods, liqpay_sandbox)
     )
     return get_receiver_by_key(receiver_key)
 
 
 def get_receiver_by_key(receiver_key: str) -> dict | None:
     return pg_query(
-        "SELECT * FROM receivers WHERE receiver_key = %s",
+        """SELECT id, receiver_key, name, receiver, iban, edrpou, is_active,
+           liqpay_public_key, liqpay_display_mode, liqpay_pay_methods, liqpay_sandbox,
+           created_at, updated_at
+           FROM receivers WHERE receiver_key = %s""",
         (receiver_key,), fetchone=True
     )
 
 
 def list_receivers() -> list:
     return pg_query(
-        "SELECT * FROM receivers ORDER BY created_at DESC",
+        """SELECT id, receiver_key, name, receiver, iban, edrpou, is_active,
+           liqpay_public_key, liqpay_display_mode, liqpay_pay_methods, liqpay_sandbox,
+           created_at, updated_at
+           FROM receivers ORDER BY created_at DESC""",
         fetchall=True
     ) or []
 
 
-def update_receiver(receiver_key: str, name, receiver, iban, edrpou, is_active) -> dict | None:
-    pg_execute(
-        """UPDATE receivers SET name=%s, receiver=%s, iban=%s, edrpou=%s, is_active=%s
-           WHERE receiver_key=%s""",
-        (name, receiver, iban, edrpou, is_active, receiver_key)
-    )
+def update_receiver(receiver_key: str, **kwargs) -> dict | None:
+    allowed = {"name", "receiver", "iban", "edrpou", "is_active",
+               "liqpay_public_key", "liqpay_display_mode", "liqpay_pay_methods", "liqpay_sandbox"}
+    updates = {k: v for k, v in kwargs.items() if k in allowed}
+    if "liqpay_private_key" in kwargs and kwargs["liqpay_private_key"]:
+        updates["liqpay_private_enc"] = encrypt_private_key(kwargs["liqpay_private_key"])
+    if not updates:
+        return get_receiver_by_key(receiver_key)
+    sets = ", ".join(f"{k}=%s" for k in updates)
+    vals = list(updates.values()) + [receiver_key]
+    pg_execute(f"UPDATE receivers SET {sets} WHERE receiver_key=%s", vals)
     return get_receiver_by_key(receiver_key)
 
 
