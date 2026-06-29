@@ -726,7 +726,10 @@ def upload_invoice(request: Request, file: UploadFile = File(...),
         raise HTTPException(400, "Файл не є валідним PDF")
     invoice_id = secrets.token_urlsafe(16)
     invoice_dir = Path("/data/invoices")
-    invoice_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        invoice_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass  # volume або Dockerfile створив
     invoice_path = invoice_dir / f"{invoice_id}.pdf"
     invoice_path.write_bytes(contents)
     ttl = get_link_ttl()

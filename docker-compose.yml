@@ -35,6 +35,8 @@ services:
     restart: unless-stopped
     command: >
       redis-server
+      --appendonly yes
+      --appendfsync everysec
       --requirepass ${REDIS_PASSWORD}
       --maxmemory 128mb
       --maxmemory-policy allkeys-lru

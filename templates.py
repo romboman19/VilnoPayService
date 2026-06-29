@@ -126,7 +126,7 @@ def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
     invoice_block = ""
     if invoice_url:
         is_external = invoice_url.startswith("https://") and "/invoice/" not in invoice_url
-        icon = "\xf0\x9f\x94\x97" if is_external else "\xf0\x9f\x93\x84"
+        icon = "\U0001F517" if is_external else "\U0001F4C4"
         label = "Відкрити рахунок-фактуру" if is_external else "Завантажити рахунок-фактуру (PDF)"
         target = 'target="_blank" rel="noopener noreferrer"' if is_external else ""
         invoice_block = f"""
