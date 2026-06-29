@@ -204,7 +204,7 @@ body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif
 .req-row:last-of-type{{border-bottom:none}}
 .req-left{{flex:1;min-width:0}}
 .req-label{{font-size:11px;color:var(--muted);font-weight:500;margin-bottom:2px}}
-.req-value{{font-size:15px;font-weight:600;color:var(--text);word-break:break-all;line-height:1.35}}
+.req-value{{font-size:15px;font-weight:600;color:var(--text);overflow-wrap:break-word;word-break:normal;text-align:right;max-width:65%;line-height:1.35}}
 .req-value.mono{{font-family:'SF Mono','Fira Code',monospace;font-size:13px}}
 .copy-field{{flex-shrink:0;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all var(--t)}}
 .copy-field:active{{transform:scale(.86)}}
