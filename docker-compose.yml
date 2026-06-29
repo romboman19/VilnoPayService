@@ -17,8 +17,10 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/tmp
     volumes:
       - vilnopay_static:/data/static
+      - vilnopay_invoices:/data/invoices
     security_opt:
       - no-new-privileges:true
     deploy:
@@ -33,6 +35,8 @@ services:
     restart: unless-stopped
     command: >
       redis-server
+      --appendonly yes
+      --appendfsync everysec
       --requirepass ${REDIS_PASSWORD}
       --maxmemory 128mb
       --maxmemory-policy allkeys-lru
@@ -86,6 +90,7 @@ volumes:
   redis_data:
   pg_data:
   vilnopay_static:
+  vilnopay_invoices:
 
 networks:
   proxy:

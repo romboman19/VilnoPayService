@@ -220,7 +220,16 @@ function syncColor(id){
 // AUTH
 async function doLogin(){
   const u=E('l-user').value.trim(),p=E('l-pass').value;
-  try{E('l-err').textContent='';const r=await api('POST','/admin/login',{username:u,password:p});showDash(r.username);}
+  try{
+    E('l-err').textContent='';
+    await api('POST','/admin/login',{username:u,password:p});
+    const me=await api('GET','/admin/me');
+    if(me.role==='manager'){
+      await api('POST','/admin/logout');
+      throw new Error('Менеджери не мають доступу до адмінки. Перейдіть на /manager');
+    }
+    showDash(me.username);
+  }
   catch(e){E('l-err').textContent=e.message;}
 }
 async function doLogout(){try{await api('POST','/admin/logout');}catch(e){}showLogin();}
@@ -394,7 +403,14 @@ async function toggleManager(id,active){
 
 // INIT
 (async()=>{
-  try{const r=await api('GET','/admin/me');showDash(r.username);}catch(e){showLogin();}
+  try{
+    const me=await api('GET','/admin/me');
+    if(me.role==='manager'){
+      window.location.href='/manager';
+      return;
+    }
+    showDash(me.username);
+  }catch(e){showLogin();}
 })();
 </script>
 </body>

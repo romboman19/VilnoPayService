@@ -91,7 +91,8 @@ updateTTL();setInterval(updateTTL,1000);
 
 
 def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
-                  hours_left, settings=None, logo_url="", link_id="", code="", ttl_seconds=0):
+                  hours_left, settings=None, logo_url="", link_id="", code="", ttl_seconds=0,
+                  invoice_url=None):
     s = settings or {}
     bg, pc, ac, tc, cc_color, bc, ff, fs, cc = _css_vars(s)
     pt = _e(s.get("page_title", "VilnoPay"))
@@ -121,6 +122,23 @@ def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
     reqs += req_row("Призначення платежу", "v-purpose", purpose)
     reqs += req_row("Сума", "v-amount", amt_display)
 
+    # Invoice block
+    invoice_block = ""
+    if invoice_url:
+        is_external = invoice_url.startswith("https://") and "/invoice/" not in invoice_url
+        icon = "\U0001F517" if is_external else "\U0001F4C4"
+        label = "Відкрити рахунок-фактуру" if is_external else "Завантажити рахунок-фактуру (PDF)"
+        target = 'target="_blank" rel="noopener noreferrer"' if is_external else ""
+        invoice_block = f"""
+<div class="invoice-block">
+<div class="invoice-icon">{icon}</div>
+<div class="invoice-text">
+<span>Рахунок-фактура додано</span>
+<a href="{invoice_url}" {target} class="invoice-link">{label}</a>
+</div>
+</div>
+"""
+
     return f"""<!DOCTYPE html>
 <html lang="uk"><head>
 <meta charset="UTF-8">
@@ -129,7 +147,7 @@ def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
 <title>{pt} — Оплата</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&{{display}}=swap" rel="stylesheet">
 <style>
 :root{{--primary:{pc};--accent:{ac};--bg:{bg};--card:{cc_color};--text:{tc};--muted:#667085;
 --border:{bc};--primary-lt:#F0FAF4;--primary-bd:#A9D6B8;
@@ -199,6 +217,12 @@ body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif
 /* Toast */
 #toast{{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--card);padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;max-width:90vw;text-align:center;opacity:0;transition:all .3s;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,.2)}}
 #toast.show{{opacity:1;transform:translateX(-50%) translateY(0)}}
+.invoice-block{{display:flex;align-items:center;gap:12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:14px 18px;margin:16px 0}}
+.invoice-icon{{font-size:24px}}
+.invoice-text{{display:flex;flex-direction:column;gap:4px}}
+.invoice-text span{{font-size:12px;color:#64748b}}
+.invoice-link{{font-size:14px;font-weight:600;color:#0284c7;text-decoration:none}}
+.invoice-link:hover{{text-decoration:underline}}
 {cc}
 </style></head>
 <body><div class="wrap">
@@ -241,6 +265,7 @@ body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif
 <button class="copy-all" onclick="copyAll(this)">Скопіювати всі реквізити</button>
 </div>
 
+{invoice_block}
 <div class="footer">{ft}</div>
 </div>
 <div id="toast"></div>
