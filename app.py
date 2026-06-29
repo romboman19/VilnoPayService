@@ -360,6 +360,14 @@ def admin_list_api_keys(request: Request):
             if r.get(k): r[k] = str(r[k])
     return rows
 
+@app.delete("/admin/api-keys/{key_id}")
+def admin_revoke_api_key(request: Request, key_id: int):
+    _require_admin(request)
+    revoke_api_key(key_id)
+    logger.info("API_KEY_REVOKED id=%s", key_id)
+    return {"ok": True}
+
+
 # ── Admin Logo Upload ───────────────────────────────────────
 
 @app.post("/admin/upload-logo")
