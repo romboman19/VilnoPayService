@@ -97,6 +97,15 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div class="fg"><label>Отримувач</label><input id="rcv-r" placeholder="ФОП Іванов І.І."></div>
 <div class="fg"><label>IBAN</label><input id="rcv-i" placeholder="UA..." class="mono"></div>
 <div class="fg"><label>ЄДРПОУ / ІПН</label><input id="rcv-e" placeholder="12345678"></div>
+<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+<label style="font-weight:600">💳 LiqPay (опцiонально)</label>
+<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Залиште порожнiм якщо отримувач не має LiqPay</div>
+</div>
+<div class="fg"><label>LiqPay Public Key</label><input id="rcv-lp-pub" placeholder="i00000000000" class="mono"></div>
+<div class="fg"><label>LiqPay Private Key</label><input id="rcv-lp-priv" type="password" placeholder="xxxxxxxxxxxxxxxx" class="mono"><div style="font-size:11px;color:var(--muted);margin-top:4px">Зашифровано. При редагуваннi — залиште порожнiм щоб не змiнювати.</div></div>
+<div class="fg"><label>Режим</label><select id="rcv-lp-mode"><option value="">Вимкнено</option><option value="widget">Вiджет (вбудований)</option><option value="button">Кнопка (нове вiкно)</option><option value="redirect">Redirect (POST-форма)</option></select></div>
+<div class="fg"><label>Методи оплати (JSON)</label><input id="rcv-lp-methods" value='["card","privat24","wallet"]' class="mono"></div>
+<div class="fg"><label><input type="checkbox" id="rcv-lp-sandbox"> Sandbox (тестовий)</label></div>
 <div class="err" id="rcv-err"></div>
 <div class="flex mt"><button class="btn btn-green" onclick="saveRcv()">Зберегти</button>
 <button class="btn btn-outline" onclick="hideRcvForm()">Скасувати</button></div>
@@ -278,15 +287,20 @@ async function loadRcv(){
     h+='</tbody></table></div>';el.innerHTML=h;
   }catch(e){toast('Помилка: '+e.message);}
 }
-function showRcvForm(){E('rcv-form').style.display='block';E('rcv-form-t').textContent='Новий отримувач';E('rcv-ek').value='';E('rcv-n').value='';E('rcv-r').value='';E('rcv-i').value='';E('rcv-e').value='';E('rcv-err').textContent='';}
+function showRcvForm(){E('rcv-form').style.display='block';E('rcv-form-t').textContent='Новий отримувач';E('rcv-ek').value='';E('rcv-n').value='';E('rcv-r').value='';E('rcv-i').value='';E('rcv-e').value='';E('rcv-lp-pub').value='';E('rcv-lp-priv').value='';E('rcv-lp-mode').value='';E('rcv-lp-methods').value='["card","privat24","wallet"]';E('rcv-lp-sandbox').checked=false;E('rcv-err').textContent='';}
 function hideRcvForm(){E('rcv-form').style.display='none';}
 async function editRcv(key){
   const rows=await api('GET','/admin/receivers');const r=rows.find(x=>x.receiver_key===key);if(!r)return;
   E('rcv-form').style.display='block';E('rcv-form-t').textContent='Редагувати: '+r.name;
   E('rcv-ek').value=key;E('rcv-n').value=r.name;E('rcv-r').value=r.receiver;E('rcv-i').value=r.iban;E('rcv-e').value=r.edrpou;
+  E('rcv-lp-pub').value=r.liqpay_public_key||'';
+  E('rcv-lp-priv').value='';
+  E('rcv-lp-mode').value=r.liqpay_display_mode||'';
+  E('rcv-lp-methods').value=r.liqpay_pay_methods||'["card","privat24","wallet"]';
+  E('rcv-lp-sandbox').checked=r.liqpay_sandbox||false;
 }
 async function saveRcv(){
-  const key=E('rcv-ek').value,body={name:E('rcv-n').value,receiver:E('rcv-r').value,iban:E('rcv-i').value,edrpou:E('rcv-e').value};
+  const key=E('rcv-ek').value,body={name:E('rcv-n').value,receiver:E('rcv-r').value,iban:E('rcv-i').value,edrpou:E('rcv-e').value,liqpay_public_key:E('rcv-lp-pub').value.trim(),liqpay_private_key:E('rcv-lp-priv').value.trim(),liqpay_display_mode:E('rcv-lp-mode').value,liqpay_pay_methods:E('rcv-lp-methods').value.trim(),liqpay_sandbox:E('rcv-lp-sandbox').checked};
   try{
     E('rcv-err').textContent='';
     if(key){body.is_active=true;await api('PUT','/admin/receivers/'+key,body);toast('Оновлено');}
@@ -416,55 +430,6 @@ async function toggleManager(id,active){
     showDash(me.username);
   }catch(e){showLogin();}
 })();
-// PROVIDERS
-async function loadProviders(){
-  try{
-    const rows=await api('GET','/admin/providers');
-    const el=E('prov-tbl');
-    if(!rows||!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає провайдерiв</p>';return;}
-    let h='<div class="resp-table"><table><thead><tr><th>Тип</th><th>Назва</th><th>Public Key</th><th>Режим</th><th>Статус</th><th></th></tr></thead><tbody>';
-    for(const r of rows){
-      const b=r.is_active?'<span class="badge badge-g">Активний</span>':'<span class="badge badge-r">Вимкнено</span>';
-      const sb=r.is_sandbox?'<span class="badge" style="background:#FFF7ED;color:#C2410C">Sandbox</span>':'';
-      h+=`<tr><td>${esc(r.provider_type)}</td><td>${esc(r.name)}</td><td class="mono">${esc((r.public_key||'').substring(0,20))}...</td><td>${esc(r.display_mode)}</td><td>${b} ${sb}</td><td><button class="btn btn-outline btn-sm" onclick="editProv(${r.id})">✏️</button> <button class="btn btn-outline btn-sm" onclick="toggleProv(${r.id},${!r.is_active})">${r.is_active?'Вимкнути':'Увiмкнути'}</button> <button class="btn btn-red btn-sm" onclick="delProv(${r.id})">🗑</button></td></tr>`;
-    }
-    el.innerHTML=h+'</tbody></table></div>';
-  }catch(e){toast('Помилка: '+e.message);}
-}
-function showProvForm(){E('prov-form').style.display='block';E('prov-form-t').textContent='Новий провайдер';E('prov-eid').value='';E('prov-type').value='liqpay';E('prov-name').value='';E('prov-pub').value='';E('prov-priv').value='';E('prov-mode').value='widget';E('prov-methods').value='["card","privat24","wallet"]';E('prov-sandbox').checked=false;E('prov-err').textContent='';}
-function hideProvForm(){E('prov-form').style.display='none';}
-async function saveProv(){
-  const eid=E('prov-eid').value;
-  const body={provider_type:E('prov-type').value,name:E('prov-name').value.trim(),public_key:E('prov-pub').value.trim(),private_key:E('prov-priv').value.trim(),display_mode:E('prov-mode').value,pay_methods:E('prov-methods').value.trim(),is_sandbox:E('prov-sandbox').checked};
-  try{
-    E('prov-err').textContent='';
-    if(eid){if(!body.private_key)delete body.private_key;await api('PUT','/admin/providers/'+eid,body);toast('Оновлено');}
-    else{if(!body.private_key){E('prov-err').textContent="Private key обов'язковий";return;}await api('POST','/admin/providers',body);toast('Створено');}
-    hideProvForm();loadProviders();
-  }catch(e){E('prov-err').textContent=e.message;}
-}
-async function editProv(id){
-  const rows=await api('GET','/admin/providers');
-  const r=rows.find(x=>x.id===id);if(!r)return;
-  E('prov-form').style.display='block';E('prov-form-t').textContent='Редагувати: '+r.name;E('prov-eid').value=id;
-  E('prov-type').value=r.provider_type;E('prov-name').value=r.name;E('prov-pub').value=r.public_key;E('prov-priv').value='';
-  E('prov-mode').value=r.display_mode;E('prov-methods').value=r.pay_methods||'[]';E('prov-sandbox').checked=r.is_sandbox;
-}
-async function toggleProv(id,active){try{await api('PUT','/admin/providers/'+id,{is_active:active});toast(active?'Увiмкнено':'Вимкнено');loadProviders();}catch(e){toast('Помилка: '+e.message);}}
-async function delProv(id){if(!confirm('Видалити провайдера?'))return;try{await api('DELETE','/admin/providers/'+id);toast('Видалено');loadProviders();}catch(e){toast('Помилка: '+e.message);}}
-async function loadLiqpayTx(){
-  try{
-    const rows=await api('GET','/admin/liqpay-transactions');
-    const el=E('liqpay-tx-tbl');
-    if(!rows||!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає транзакцiй</p>';return;}
-    let h='<div class="resp-table"><table><thead><tr><th>Order ID</th><th>Link ID</th><th>Статус</th><th>Сума</th><th>Картка</th><th>Час</th></tr></thead><tbody>';
-    for(const r of rows){
-      const sc=r.status==='success'?'badge-g':(r.status==='failure'?'badge-r':'');
-      h+=`<tr><td class="mono">${esc(r.order_id)}</td><td class="mono">${esc(r.link_id)}</td><td><span class="badge ${sc}">${esc(r.status||'pending')}</span></td><td>${r.amount||'—'} ${esc(r.currency||'')}</td><td class="mono">${esc(r.sender_card||'—')}</td><td>${fmtKiev(r.created_at)}</td></tr>`;
-    }
-    el.innerHTML=h+'</tbody></table></div>';
-  }catch(e){}
-}
 function renderBlockOrder(order){
   const labels={'nbu_qr':'🏦 QR НБУ + кнопка банку','liqpay':'💳 LiqPay','requisites':'📋 Реквізити'};
   const el=E('block-order-editor');el.innerHTML='';
@@ -480,26 +445,4 @@ function getBlockOrder(){try{return JSON.parse(E('s-block_order').value);}catch(
 
 </script>
 </body>
-</html
-<div class="panel" id="p-prov" style="display:none">
-<div class="card">
-<h2>Платiжнi провайдери</h2>
-<div id="prov-tbl"></div>
-<button class="btn btn-blue mt" onclick="showProvForm()">+ Додати провайдера</button>
-</div>
-<div class="card" id="prov-form" style="display:none">
-<h2 id="prov-form-t">Новий провайдер</h2>
-<input type="hidden" id="prov-eid">
-<div class="fg"><label>Тип</label><select id="prov-type"><option value="liqpay">LiqPay</option></select></div>
-<div class="fg"><label>Назва</label><input id="prov-name" placeholder="LiqPay основний"></div>
-<div class="fg"><label>Public Key</label><input id="prov-pub" placeholder="i00000000000" class="mono"></div>
-<div class="fg"><label>Private Key</label><input id="prov-priv" type="password" placeholder="xxxxxxxxxxxxxxxx" class="mono"><div style="font-size:11px;color:var(--muted);margin-top:4px">Зберiгається зашифрованим. При редагуваннi — залиште порожнiм щоб не змiнювати.</div></div>
-<div class="fg"><label>Режим вiдображення</label><select id="prov-mode"><option value="widget">Вiджет (вбудований)</option><option value="button">Кнопка (нове вiкно)</option><option value="redirect">Redirect (POST-форма)</option></select></div>
-<div class="fg"><label>Методи оплати (JSON array)</label><input id="prov-methods" value='["card","privat24","wallet"]' class="mono"></div>
-<div class="fg"><label><input type="checkbox" id="prov-sandbox"> Sandbox (тестовий режим)</label></div>
-<div class="err" id="prov-err"></div>
-<div class="flex mt"><button class="btn btn-green" onclick="saveProv()">Зберегти</button><button class="btn btn-outline" onclick="hideProvForm()">Скасувати</button></div>
-</div>
-<div class="card"><h2>Транзакцiї LiqPay</h2><div id="liqpay-tx-tbl"></div></div>
-</div>
->
+</html>
