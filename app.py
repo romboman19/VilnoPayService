@@ -1,7 +1,7 @@
 """
 VilnoPayService v4.0.0 — Admin Panel + Receiver Keys
 """
-import base64, hashlib, io, json, logging, os, re, secrets, time
+import base64, hashlib, hmac, io, json, logging, os, re, secrets, time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -41,6 +41,7 @@ from templates import pay_page_html, expired_page_html, liqpay_result_html
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
+LIQPAY_CALLBACK_IPS = set(os.getenv("LIQPAY_CALLBACK_IPS", "").split(",")) - {""}
 SESSION_TTL_HOURS = int(os.getenv("SESSION_TTL_HOURS", "8"))
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper(),
@@ -321,12 +322,23 @@ def health(request: Request):
 @app.post("/admin/login")
 @limiter.limit("5/minute")
 def admin_login(request: Request, body: LoginRequest, response: Response):
+    # H-3: Account lockout
+    fail_key = f"login_fail:{body.username}"
+    fail_count = int(rdb.get(fail_key) or 0)
+    if fail_count >= 10:
+        raise HTTPException(429, "Акаунт заблоковано. Спробуйте через 15 хвилин.")
     user = pg_query(
         "SELECT id, username, password_hash FROM admin_users WHERE username = %s AND is_active = TRUE",
         (body.username,), fetchone=True
     )
     if not user or not bcrypt.checkpw(body.password.encode(), user["password_hash"].encode()):
+        rdb.incr(fail_key)
+        rdb.expire(fail_key, 900)  # 15 хвилин
         raise HTTPException(401, "Невірний логін або пароль")
+    # Скинути лічильник невдалих спроб
+    rdb.delete(fail_key)
+    # H-5: Session fixation — видалити старі сесії користувача
+    pg_execute("DELETE FROM admin_sessions WHERE user_id = %s", (user["id"],))
     token = create_admin_session(user["id"], get_remote_address(request),
                                   request.headers.get("user-agent", ""), SESSION_TTL_HOURS)
     response = JSONResponse({"ok": True, "username": user["username"]})
@@ -732,7 +744,8 @@ def liqpay_signature(private_key: str, data: str) -> str:
 
 
 def liqpay_verify_callback(private_key: str, data: str, signature: str) -> bool:
-    return liqpay_signature(private_key, data, signature) == signature
+    expected = liqpay_signature(private_key, data)
+    return hmac.compare_digest(expected, signature)
 
 
 # ── Public LiqPay Endpoints ───────────────────────────────────
@@ -790,6 +803,12 @@ def liqpay_checkout_data(request: Request, link_id: str):
 @app.post("/liqpay/callback")
 async def liqpay_callback(request: Request):
     """Server-to-server callback від LiqPay."""
+    # IP whitelist (опціонально — якщо налаштовано)
+    if LIQPAY_CALLBACK_IPS:
+        client_ip = get_remote_address(request)
+        if client_ip not in LIQPAY_CALLBACK_IPS:
+            logger.warning("LIQPAY_CALLBACK IP not whitelisted: %s", client_ip)
+            raise HTTPException(403, "Forbidden")
     form = await request.form()
     data = form.get("data", "")
     signature = form.get("signature", "")

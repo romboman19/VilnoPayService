@@ -13,7 +13,7 @@ def _css_vars(s):
     bc = _h.escape(s.get("border_color", "#EAECF0"))
     ff = _h.escape(s.get("font_family", "Inter"))
     fs = _h.escape(s.get("font_size", "15"))
-    cc = s.get("custom_css", "")
+    cc = s.get("custom_css", "").replace("</", "<\\/")
     return bg, pc, ac, tc, cc_color, bc, ff, fs, cc
 
 def _e(v):
