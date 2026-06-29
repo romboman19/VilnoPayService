@@ -187,8 +187,7 @@ async function createPayment(){
         <div class="result-qr"><img src="data:image/png;base64,${r.qr_base64}" alt="QR"></div>
         <div class="result-url">${esc(r.pay_url)}</div>
         <div class="flex" style="gap:8px">
-          <button class="copy-btn" onclick="copyText(this,'${esc(r.pay_url)}')">Скопіювати посилання</button>
-          <a class="btn btn-blue btn-sm" href="${esc(r.nbu_url)}" target="_blank">Відкрити QR НБУ</a>
+          <button class="btn btn-blue btn-sm" onclick="copyText(this,'${esc(r.pay_url)}')">Скопіювати посилання</button>
           <a class="btn btn-outline btn-sm" href="${esc(r.pay_url)}" target="_blank">Відкрити сторінку</a>
         </div>
       </div>`;
@@ -198,8 +197,8 @@ async function createPayment(){
 }
 
 function copyText(btn,text){
-  navigator.clipboard.writeText(text).then(()=>{btn.classList.add('ok');btn.textContent='✓ Скопійовано';
-    setTimeout(()=>{btn.classList.remove('ok');btn.textContent='Скопіювати посилання';},2500);});
+  navigator.clipboard.writeText(text).then(()=>{var old=btn.textContent;btn.textContent='✓ Скопійовано';
+    setTimeout(()=>{btn.textContent=old;},2500);});
 }
 
 async function loadTemplates(){
