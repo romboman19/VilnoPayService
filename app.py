@@ -545,7 +545,11 @@ def manager_create_payment(request: Request, body: dict):
         "created_ip": get_remote_address(request)
     }
     rdb.setex(f"pay:{link_id}", ttl * 3600, json.dumps(payload))
-    log_payment_link(link_id, receiver_key, purpose, amount, f"manager_{session.get('username','')}", get_remote_address(request))
+    # Знайти API ключ менеджера для логування
+    mgr_key = pg_query("SELECT key_prefix FROM api_keys WHERE label = %s AND is_active = TRUE LIMIT 1",
+                       (f"manager_{session.get('username','')}",), fetchone=True)
+    key_prefix = mgr_key["key_prefix"] if mgr_key else f"mgr_{session.get('username','')[:8]}"
+    log_payment_link(link_id, receiver_key, purpose, amount, key_prefix, get_remote_address(request))
     qr_b64 = base64.b64encode(generate_qr_png_bytes(pay_url)).decode("ascii")
     logger.info("MANAGER_PAYMENT id=%s manager=%s rcv=%s", link_id, session.get("username"), receiver_key)
     return {"pay_url": pay_url, "nbu_url": nbu_url, "qr_base64": qr_b64, "link_id": link_id}

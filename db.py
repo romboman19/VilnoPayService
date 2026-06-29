@@ -298,7 +298,7 @@ def list_page_views_for_link(link_id, limit=50):
 # ── Managers CRUD ──────────────────────────────────────────
 
 def create_manager(username, password, name=""):
-    """Створити менеджера."""
+    """Створити менеджера + API ключ."""
     pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     pg_execute(
         "INSERT INTO admin_users (username, password_hash, role) VALUES (%s, %s, 'manager')",
@@ -308,6 +308,9 @@ def create_manager(username, password, name=""):
                     (username,), fetchone=True)
     if row and row.get("created_at"):
         row["created_at"] = str(row["created_at"])
+    # Створити API ключ для менеджера
+    plain_key, key_record = create_api_key(f"manager_{username}")
+    row["api_key"] = plain_key
     return row
 
 
@@ -365,12 +368,13 @@ def delete_template(template_id, manager_id):
 # ── Manager payment history ───────────────────────────────
 
 def list_manager_payments(manager_username, limit=50):
-    """Історія платежів менеджера — шукає по api_key_prefix LIKE mgr_%username%."""
+    """Історія платежів менеджера — по API ключу з label manager_<username>."""
     rows = pg_query(
-        """SELECT * FROM payment_links_log
-           WHERE api_key_prefix LIKE %s
-           ORDER BY created_at DESC LIMIT %s""",
-        (f"mgr_%{manager_username}%", min(limit, 200)), fetchall=True
+        """SELECT pl.* FROM payment_links_log pl
+           JOIN api_keys ak ON pl.api_key_prefix = ak.key_prefix
+           WHERE ak.label = %s
+           ORDER BY pl.created_at DESC LIMIT %s""",
+        (f"manager_{manager_username}", min(limit, 200)), fetchall=True
     ) or []
     for r in rows:
         if r.get("created_at"):

@@ -77,6 +77,7 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div class="tab active" data-t="pay">Створити платіж</div>
 <div class="tab" data-t="templates">Шаблони</div>
 <div class="tab" data-t="history">Історія</div>
+<div class="tab" data-t="mykey">Мій API ключ</div>
 </div>
 
 <div class="panel active" id="p-pay">
@@ -112,6 +113,16 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 
 <div class="panel" id="p-history">
 <div class="card"><h2>Історія платежів</h2><div id="hist-tbl"></div></div>
+</div>
+
+
+<div class="panel" id="p-mykey">
+<div class="card">
+<h2>Мій API ключ</h2>
+<p style="color:var(--muted);font-size:13px;margin-bottom:12px">Ключ для інтеграції з n8n або іншими сервісами</p>
+<div id="mykey-box" class="key-box"></div>
+<p style="color:var(--muted);font-size:12px;margin-top:8px">⚠️ Ключ не можна відновити. Збережіть його у безпечному місці.</p>
+</div>
 </div>
 
 </div>
@@ -153,7 +164,7 @@ E('tabs').addEventListener('click',e=>{
   t.classList.add('active');E('p-'+t.dataset.t).classList.add('active');
 });
 
-function loadAll(){loadReceivers();loadTemplates();loadHistory();}
+function loadAll(){loadReceivers();loadTemplates();loadHistory();loadMyKey();}
 
 async function loadReceivers(){
   try{

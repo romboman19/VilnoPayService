@@ -383,7 +383,14 @@ async function loadManagers(){
 async function createManager(){
   const u=E('mgr-user').value.trim(),p=E('mgr-pass').value;
   if(!u||!p){toast('Введіть логін і пароль');return;}
-  try{await api('POST','/admin/managers',{username:u,password:p,name:u});toast('Менеджер створений');E('mgr-user').value='';E('mgr-pass').value='';loadManagers();}
+  try{
+    const r=await api('POST','/admin/managers',{username:u,password:p,name:u});
+    toast('Менеджер створений');
+    if(r.api_key){
+      alert('API ключ менеджера (збережіть!):\n\n'+r.api_key);
+    }
+    E('mgr-user').value='';E('mgr-pass').value='';loadManagers();
+  }
   catch(e){toast('Помилка: '+e.message);}
 }
 async function delManager(id){
