@@ -330,7 +330,7 @@ def admin_logout(request: Request, response: Response):
 @app.get("/admin/me")
 def admin_me(request: Request):
     session = _require_admin(request)
-    return {"username": session["username"]}
+    return {"username": session["username"], "role": session.get("role", "admin")}
 
 
 # ── Admin Settings ───────────────────────────────────────────
