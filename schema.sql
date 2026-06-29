@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS liqpay_transactions (
     id              SERIAL PRIMARY KEY,
     link_id         VARCHAR(32) NOT NULL,
     order_id        VARCHAR(100) NOT NULL UNIQUE,
-    provider_id     INTEGER REFERENCES payment_providers(id),
+    provider_id     INTEGER REFERENCES payment_providers(id) ON DELETE SET NULL,
     liqpay_order_id VARCHAR(100),
     status          VARCHAR(30),
     amount          NUMERIC(12,2),

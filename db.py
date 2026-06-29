@@ -128,6 +128,8 @@ def _migrate():
         "ALTER TABLE receivers ADD COLUMN IF NOT EXISTS liqpay_display_mode VARCHAR(30) DEFAULT ''",
         "ALTER TABLE receivers ADD COLUMN IF NOT EXISTS liqpay_pay_methods TEXT DEFAULT '[\"card\",\"privat24\",\"wallet\"]'",
         "ALTER TABLE receivers ADD COLUMN IF NOT EXISTS liqpay_sandbox BOOLEAN DEFAULT FALSE",
+        # Зробити provider_id nullable (LiqPay прив'язаний до отримувача, не до провайдера)
+        "ALTER TABLE liqpay_transactions ALTER COLUMN provider_id DROP NOT NULL",
         # Payment providers
         """CREATE TABLE IF NOT EXISTS payment_providers (
             id              SERIAL PRIMARY KEY,
@@ -589,7 +591,7 @@ def get_provider_decrypted(provider_id):
 def create_liqpay_tx(link_id, order_id, provider_id):
     pg_execute(
         "INSERT INTO liqpay_transactions (link_id,order_id,provider_id) VALUES (%s,%s,%s)",
-        (link_id, order_id, provider_id))
+        (link_id, order_id, provider_id if provider_id else None))
 
 
 def update_liqpay_tx(order_id, **kwargs):
