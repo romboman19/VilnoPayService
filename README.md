@@ -1,49 +1,60 @@
 # VilnoPayService
 
-**Сервіс генерації платіжних QR-кодів за стандартом НБУ №97 (EPC QR Code v002)**
+**Self-hosted платіжний сервіс: QR-коди НБУ + LiqPay + рахунки-фактури**
 
-VilnoPayService — self-hosted веб-сервіс для створення платіжних посилань з QR-кодами, які відповідають Постанові НБУ №97 від 19.08.2025. Продавці генерують QR-коди для кредитових переказів, які клієнти оплачують через мобільні додатки банків.
+VilnoPayService — self-hosted веб-сервіс для створення платіжних посилань з QR-кодами (Постанова НБУ №97), інтеграції LiqPay для онлайн-оплати карткою/Google Pay/Apple Pay, та прикріплення рахунків-фактур (PDF).
 
 ## Ролі
 
 | Роль | Доступ | Опис |
 |------|--------|------|
-| **Адмін** | `https://pay.domain.com/admin` | Керує менеджерами, отримувачами, брендингом, переглядає логи |
-| **Менеджер** | `https://pay.domain.com/manager` | Створює платіжні посилання для клієнтів, шаблони платежів |
-| **Клієнт** | `/p/{link_id}` | Відкриває посилання → оплачує через банк-додаток або QR |
+| **Адмін** | `/admin` | Керує менеджерами, отримувачами, провайдерами, брендингом, переглядає логи |
+| **Менеджер** | `/manager` | Створює платіжні посилання, шаблони, завантажує рахунки-фактури |
+| **Клієнт** | `/p/{link_id}` | Оплачує через банк-додаток (QR), LiqPay (картка/GPay/APay), або переказом за реквізитами |
 
 ## Можливості
 
 ### Клієнт (сторінка оплати)
-- 🏦 **Оплата через додаток банку** — посилання на NBU QR для відкриття в додатку
-- 📱 **Поділитися QR** — Web Share API (Android): натиснути на QR → обрати банк-додаток
-- 📷 **Сканувати QR** — камерою або натисканням на зображення
-- 📋 **Реквізити** — копіювання в один клік (Отримувач, IBAN, ІПН, Призначення, Сума)
-- ⏱️ **Лічильник** — реальний час до закінчення посилання (год + хв)
+- 🏦 **QR НБУ** — оплата через мобільний додаток банку (Web Share API на Android)
+- 💳 **LiqPay** — онлайн-оплата: віджет (inline) або кнопка (redirect)
+  - Картка Visa/Mastercard, Google Pay, Apple Pay, Privat24
+  - Методи налаштовуються в кабінеті LiqPay
+- 📋 **Реквізити** — компактні картки з копіюванням в один клік
+- 📄 **Рахунок-фактура** — завантаження PDF або посилання на зовнішній документ
+- ⏱️ **Лічильник** — реальний час до закінчення посилання
+- 📱 **Адаптивний дизайн** — mobile-first, iOS safe-area, clamp для великих сум
 
 ### Менеджер (веб-кабінет)
 - 🔐 **Логін/пароль** — окрема роль, не має доступу до адмінки
 - 💳 **Створення платежів** — обирає отримувача, призначення, суму → отримує посилання + QR
+- 📄 **Рахунки-фактури** — завантаження PDF (до 5MB) або посилання на зовнішній документ
 - 📋 **Шаблони** — пресети (отримувач + призначення + сума за замовч.)
-- 📊 **Історія** — список створених платежів з часом за Києвом
-- 🔑 **API ключ** — генерується автоматично, показується адміну один раз (для n8n)
+- 📊 **Історія** — список створених платежів з кнопкою копіювання посилання
+- 🔑 **API ключ** — генерується автоматично, show-once (для n8n, інтеграцій)
 
 ### Адмін
 - 👥 **Менеджери** — створення/видалення/вмикання, авто-генерація API ключів
-- 🏢 **Отримувачі** — CRUD (ПІБ, IBAN, ЄДРПОУ/ІПН)
-- 🎨 **Брендинг** — логотип (файл), кольори (фон, текст, блоки, межі), шрифт (Inter), розмір
+- 🏢 **Отримувачі** — CRUD (ПІБ, IBAN, ЄДРПОУ/ІПН) + налаштування LiqPay per-receiver
+- 💳 **Платіжні провайдери** — LiqPay налаштовується для кожного отримувача окремо:
+  - Public Key, Private Key (зашифрований Fernet)
+  - Режим: віджет (inline) або кнопка (redirect)
+  - Sandbox режим
+- 🎨 **Брендинг** — логотип, кольори, шрифт, CSS, порядок блоків на сторінці оплати
 - 🔑 **API ключі** — перегляд + відкликання
-- 📊 **Логи** — генерація посилань + перегляди клієнтами (IP, пристрій, банк)
-- 👁️ **Preview** — попередній перегляд сторінки оплати з поточним брендингом
+- 📊 **Логи** — генерація посилань, перегляди клієнтами (IP, пристрій, банк)
+- 👁️ **Preview** — попередній перегляд сторінки оплати
 
 ### Безпека
-- **API ключі** — SHA-256 hash в БД, show-once модель (як GitHub tokens)
-- **Сесії** — bcrypt, httponly cookies, secure, samesite=strict
-- **CSP** — Content-Security-Policy на всіх сторінках
+- **API ключі** — SHA-256 hash в БД, show-once модель
+- **LiqPay** — private_key шифрований Fernet (AES-128 + HMAC), callback з верифікацією підпису (SHA-1 + hmac.compare_digest), IP whitelist
+- **Сесії** — bcrypt, httponly cookies, secure, samesite=strict, session fixation захист
+- **Account lockout** — 10 невдалих спроб → блок на 15 хвилин
+- **CSP** — Content-Security-Policy (LiqPay домени в whitelist)
+- **CSS injection** — escape `</` в custom_css
 - **Rate limiting** — slowapi (10/хв generate, 30/хв pay page)
 - **Docker** — read-only container, no-new-privileges, tmpfs /tmp
-- **Role-based access** — адмін ≠ менеджер (403 на /manager/* для адміна)
-- **Платежі** — створити можна лише з менеджерським API ключем (vpk_...)
+- **Role-based access** — адмін ≠ менеджер (автоматичний редирект)
+- **PostgreSQL** — параметризовані запити (SQL injection захищений)
 
 ## Швидкий старт
 
@@ -54,9 +65,11 @@ git clone https://github.com/romboman19/VilnoPayService.git
 cd VilnoPayService
 cp .env.example .env
 # Відредагувати .env:
-# - ADMIN_INIT_USER / ADMIN_INIT_PASS — логін/пароль адміна (при першому старті)
+# - ADMIN_INIT_USER / ADMIN_INIT_PASS — логін/пароль адміна
 # - BASE_URL — публічна URL (напр. https://pay.example.com)
 # - PG_PASSWORD, REDIS_PASSWORD
+# - PROVIDER_ENCRYPTION_KEY — Fernet ключ для шифрування LiqPay private keys
+#   Згенерувати: docker exec pay-service python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
 ### 2. Запуск
@@ -65,12 +78,13 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-### 3. Налаштування
+### 3. Налаштування (через адмінку, без коду)
 
 1. `/admin` → залогіньтесь як адмін
-2. Додайте отримувача (ПІБ, IBAN, ЄДРПОУ/ІПН)
-3. Створіть менеджера → **збережіть API ключ** (показується один раз!)
-4. Завантажте логотип, налаштуйте кольори
+2. **Отримувачі** → додайте отримувача (ПІБ, IBAN, ЄДРПОУ/ІПН)
+   - Оберіть провайдер: **LiqPay** → введіть Public Key, Private Key, оберіть режим
+3. **Менеджери** → створіть менеджера → **збережіть API ключ** (показується один раз!)
+4. **Брендинг** → завантажте логотип, налаштуйте кольори, порядок блоків
 5. Менеджер: `/manager` → створює платіж → копіює посилання → надсилає клієнту
 
 ## API
@@ -86,7 +100,9 @@ curl -X POST https://pay.domain.com/generate \
   -d '{
     "receiver_key": "rcv_abc123",
     "purpose": "За товар HUNTER",
-    "amount": "1500"
+    "amount": "1500",
+    "invoice_id": "abc123",
+    "invoice_url": "https://example.com/invoice.pdf"
   }'
 ```
 
@@ -97,7 +113,8 @@ curl -X POST https://pay.domain.com/generate \
   "pay_url": "https://pay.domain.com/p/abc123XYZ...",
   "nbu_url": "https://bank.gov.ua/qr/QkNE...",
   "qr_base64": "iVBOR...",
-  "expires_in_hours": 24
+  "expires_in_hours": 24,
+  "invoice_url": "https://pay.domain.com/invoice/abc123XYZ..."
 }
 ```
 
@@ -105,42 +122,23 @@ curl -X POST https://pay.domain.com/generate \
 
 | Параметр | Тип | Опис |
 |----------|-----|------|
-| `receiver_key` | string | Ключ отримувача (з адмінки, напр. `rcv_abc123`) |
+| `receiver_key` | string | Ключ отримувача (з адмінки) |
 | `purpose` | string | Призначення платежу (2-420 символів) |
-| `amount` | string? | Сума (опціонально, напр. `1500` або `1500.00`) |
+| `amount` | string? | Сума (опціонально) |
+| `invoice_id` | string? | ID завантаженого PDF рахунку |
+| `invoice_url` | string? | Зовнішнє посилання на рахунок |
 
-**Приклад для n8n (HTTP Request):**
+### POST /upload-invoice
 
-```json
-{
-  "method": "POST",
-  "url": "https://pay.domain.com/generate",
-  "headers": {
-    "Content-Type": "application/json",
-    "X-API-Key": "vpk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-  },
-  "body": {
-    "receiver_key": "rcv_abc123",
-    "purpose": "За товар HUNTER",
-    "amount": "1500"
-  }
-}
-```
+Завантаження PDF рахунку-фактури (до 5MB, magic bytes перевірка). Приймає API ключ або менеджерську cookie сесію.
 
-**Відповідь:**
+### POST /liqpay/callback
 
-```json
-{
-  "pay_url": "https://pay.example.com/p/abc123...",
-  "nbu_url": "https://bank.gov.ua/qr/QkNE...",
-  "qr_base64": "iVBOR...",
-  "expires_in_hours": 24
-}
-```
+Server-to-server callback від LiqPay. Верифікація підпису + IP whitelist.
 
 ### GET /p/{link_id}
 
-Платіжна сторінка з QR-кодом, кнопкою оплати та реквізитами.
+Платіжна сторінка: QR НБУ + LiqPay (якщо налаштований) + реквізити + рахунок-фактура.
 
 ### GET /health
 
@@ -154,53 +152,33 @@ curl -X POST https://pay.domain.com/generate \
 │  (proxy)    │     │  (app.py)    │     │  (TTL links)│
 └─────────────┘     └──────┬───────┘     └─────────────┘
                            │
-                           ▼
-                    ┌──────────────┐
+                    ┌──────┴───────┐
                     │  PostgreSQL  │
                     │  (managers,  │
                     │   receivers, │
+                    │   providers, │
                     │   keys,      │
                     │   templates, │
-                    │   logs)      │
+                    │   tx, logs)  │
                     └──────────────┘
 ```
 
 | Компонент | Призначення |
 |-----------|-------------|
 | **FastAPI** | REST API, сторінка оплати, адмінка, кабінет менеджера |
-| **Redis** | Зберігання платіжних посилань з TTL |
-| **PostgreSQL** | Менеджери, отримувачі, API-ключі (hash), шаблони, логи, брендинг |
-| **Docker** | read-only container, tmpfs /tmp, volume /data/static (лого) |
-
-## Структура QR-коду (NBU v002)
-
-```
-BCD              ← Службова мітка
-002              ← Версія формату
-2                ← Кодування (Win1251)
-UCT              ← Функція (Ukrainian Credit Transfer)
-                 ← BIC (RFU, порожнє)
-ФОП Козарчук     ← Отримувач
-UA783052...      ← IBAN (29 символів)
-UAH1500          ← Сума + валюта
-2262003378       ← ЄДРПОУ/ІПН
-                 ← Ціль (RFU)
-                 ← Reference (RFU)
-За товар         ← Призначення платежу
-                 ← Відображення (порожнє)
-```
-
-Гіперпосилання: `https://bank.gov.ua/qr/{Base64URL(Win1251)}`
+| **Redis** | Зберігання платіжних посилань з TTL, AOF persistence |
+| **PostgreSQL** | Менеджери, отримувачі, провайдери, API-ключі, шаблони, транзакції LiqPay, логи, брендинг |
+| **Docker** | read-only container, tmpfs /tmp, volumes /data/static + /data/invoices |
 
 ## Файли
 
 | Файл | Опис |
 |------|------|
-| `app.py` | FastAPI: endpoint'и, middleware, логіка |
-| `db.py` | PostgreSQL: CRUD, міграції, сесії, ролі |
-| `templates.py` | HTML-шаблони сторінки оплати |
-| `admin.html` | SPA адмін-панель |
-| `manager.html` | SPA кабінет менеджера |
+| `app.py` | FastAPI: endpoint'и, middleware, LiqPay signature, callback |
+| `db.py` | PostgreSQL: CRUD, міграції, Fernet шифрування, connection pool |
+| `templates.py` | HTML-шаблони: сторінка оплати, LiqPay блок, результат, expired |
+| `admin.html` | SPA адмін-панель (отримувачі, менеджери, брендинг, блоки) |
+| `manager.html` | SPA кабінет менеджера (платежі, історія, шаблони) |
 | `schema.sql` | DDL: таблиці, індекси, тригери |
 | `docker-compose.yml` | Redis + PostgreSQL + App |
 | `Dockerfile` | Python 3.12-slim + fonts-dejavu (для ₴ на QR) |
@@ -217,6 +195,8 @@ UAH1500          ← Сума + валюта
 | `SESSION_TTL_HOURS` | Час життя сесії (год) | `8` |
 | `ALLOWED_HOSTS` | Дозволені хости | `*` |
 | `LOG_LEVEL` | Рівень логування | `INFO` |
+| `PROVIDER_ENCRYPTION_KEY` | Fernet ключ для шифрування LiqPay private keys | — |
+| `LIQPAY_CALLBACK_IPS` | IP whitelist для LiqPay callback (через кому) | — |
 
 ## Відповідність НБУ №97
 
