@@ -110,14 +110,17 @@ def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
 
     logo = f'<img src="{lu}" alt="Logo" style="max-height:44px;margin-bottom:8px;border-radius:8px;">' if lu else ""
 
-    def req_row(label, vid, value, mono=False):
+    def req_row(label, vid, value, mono=False, nowrap=False):
         mc = ' mono' if mono else ''
-        return f'''<div class="req-row"><div class="req-left"><div class="req-label">{label}</div>
-<div class="req-value{mc}" id="{vid}">{value}</div></div>
-<button class="copy-field" onclick="copyField(this,'{vid}')">{COPY_ICON}</button></div>'''
+        nw = ' nowrap' if nowrap else ''
+        return f'''<div class="req-card{mc}{nw}">
+<div class="req-card-header"><span class="req-label">{label}</span>
+<button class="copy-field" onclick="copyField(this,'{vid}')">{COPY_ICON}</button></div>
+<div class="req-value" id="{vid}">{value}</div>
+</div>'''
 
     reqs = req_row("Отримувач", "v-receiver", receiver)
-    reqs += req_row("IBAN", "v-iban", iban, mono=True)
+    reqs += req_row("IBAN", "v-iban", iban, mono=True, nowrap=True)
     reqs += req_row("ІПН (РНКОПП)", "v-code", code_e, mono=True)
     reqs += req_row("Призначення платежу", "v-purpose", purpose)
     reqs += req_row("Сума", "v-amount", amt_display)
@@ -200,18 +203,22 @@ body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif
 .qr-tap{{font-size:12px;color:var(--primary);font-weight:500;margin-top:8px}}
 
 /* Requisites */
-.req-row{{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border);gap:8px}}
-.req-row:last-of-type{{border-bottom:none}}
-.req-left{{flex:1;min-width:0}}
-.req-label{{font-size:11px;color:var(--muted);font-weight:500;margin-bottom:2px}}
-.req-value{{font-size:15px;font-weight:600;color:var(--text);overflow-wrap:break-word;word-break:normal;text-align:right;max-width:65%;line-height:1.35}}
-.req-value.mono{{font-family:'SF Mono','Fira Code',monospace;font-size:13px}}
-.copy-field{{flex-shrink:0;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all var(--t)}}
+.req-container{{display:flex;flex-direction:column;gap:14px}}
+.req-card{{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px 16px;transition:border-color var(--t)}}
+.req-card:hover{{border-color:var(--primary)}}
+.req-card-header{{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;margin-bottom:6px}}
+.req-label{{font-size:13px;color:var(--muted);font-weight:500}}
+.req-value{{display:block;width:100%;min-width:0;font-size:16px;font-weight:600;color:var(--text);line-height:1.4;word-break:normal;overflow-wrap:break-word;hyphens:none}}
+.req-card.mono .req-value{{font-family:'SF Mono','Fira Code',monospace;font-size:14px}}
+.req-card.nowrap .req-value{{white-space:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}}
+.req-card.nowrap .req-value::-webkit-scrollbar{{display:none}}
+.copy-field{{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all var(--t)}}
 .copy-field:active{{transform:scale(.86)}}
 .copy-field.ok{{color:var(--primary);border-color:var(--primary);background:var(--primary-lt)}}
-.copy-all{{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:14px;padding:12px;border-radius:var(--rs);border:1px solid var(--border);background:transparent;font-size:14px;font-weight:600;color:var(--text);cursor:pointer;transition:all var(--t);font-family:inherit}}
+.copy-all{{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:20px;height:52px;border-radius:var(--rs);border:1px solid var(--border);background:transparent;font-size:15px;font-weight:600;color:var(--text);cursor:pointer;transition:all var(--t);font-family:inherit}}
 .copy-all:active{{transform:scale(.97)}}
 .copy-all.ok{{color:var(--primary);border-color:var(--primary);background:var(--primary-lt)}}
+@media(max-width:768px){{.req-card-header{{grid-template-columns:1fr 44px}}.copy-field{{width:44px;height:44px;border-radius:12px}}.req-value{{font-size:17px}}.req-card{{padding:16px}}}}
 .footer{{text-align:center;font-size:11px;color:var(--muted);padding:16px 0 8px}}
 
 /* Toast */
