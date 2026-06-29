@@ -302,12 +302,17 @@ async function loadHistory(){
   try{
     const rows=await api('GET','/manager/history');const el=E('hist-tbl');
     if(!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає платежів</p>';return;}
-    let h='<div class="resp-table"><table><thead><tr><th>ID</th><th>Отримувач</th><th>Призначення</th><th>Сума</th><th>Час</th></tr></thead><tbody>';
+    let h='<div class="resp-table"><table><thead><tr><th>ID</th><th>Отримувач</th><th>Призначення</th><th>Сума</th><th>Час</th><th></th></tr></thead><tbody>';
     for(const r of rows){
-      h+=`<tr><td class="mono">${esc(r.link_id)}</td><td class="mono">${esc(r.receiver_key)}</td><td>${esc(r.purpose)}</td><td>${esc(r.amount||'—')}</td><td>${fmtKiev(r.created_at)}</td></tr>`;
+      const payUrl=window.location.origin+'/p/'+esc(r.link_id);
+      h+=`<tr><td class="mono">${esc(r.link_id)}</td><td class="mono">${esc(r.receiver_key)}</td><td>${esc(r.purpose)}</td><td>${esc(r.amount||'—')}</td><td>${fmtKiev(r.created_at)}</td><td><button class="btn btn-outline btn-sm" onclick="copyHistoryLink(this,'${payUrl}')">Копіювати</button></td></tr>`;
     }
     h+='</tbody></table></div>';el.innerHTML=h;
   }catch(e){el.innerHTML='<p style="color:var(--muted)">Помилка завантаження</p>';}
+}
+function copyHistoryLink(btn,url){
+  navigator.clipboard.writeText(url).then(()=>{var old=btn.textContent;btn.textContent='✓';
+    setTimeout(()=>{btn.textContent=old;},2000);});
 }
 
 (async()=>{

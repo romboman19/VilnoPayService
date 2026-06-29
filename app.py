@@ -712,7 +712,11 @@ def admin_preview(request: Request):
 @limiter.limit("5/minute")
 def upload_invoice(request: Request, file: UploadFile = File(...),
                    x_api_key: str | None = Header(None, alias="X-API-Key")):
-    _check_api_key(x_api_key)
+    # Приймати або API ключ, або менеджерську сесію
+    if x_api_key and x_api_key.startswith("vpk_"):
+        _check_api_key(x_api_key)
+    else:
+        _require_manager(request)
     if file.content_type != "application/pdf":
         raise HTTPException(400, "Дозволено тільки PDF")
     contents = file.file.read()
