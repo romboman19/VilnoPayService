@@ -378,7 +378,7 @@ def liqpay_block_html(link_id, provider, amount_raw, liqpay_paid=None):
     elif mode == "redirect":
         # Кнопка "Онлайн оплата" — POST на LiqPay
         return f"""<div class="section" id="liqpay-section">
-<div class="sec-label">Онлайн оплата</div>
+<div class="sec-label">Оплата карткою</div>
 <form id="liqpay-form" method="POST" action="https://www.liqpay.ua/api/3/checkout">
 <input type="hidden" name="data" id="liqpay-data">
 <input type="hidden" name="signature" id="liqpay-sig">
@@ -391,7 +391,7 @@ fetch('/liqpay/checkout-data/{lid}')
     document.getElementById('liqpay-data').value=d.data;
     document.getElementById('liqpay-sig').value=d.signature;
     var btn=document.querySelector('#liqpay-form button');
-    btn.disabled=false; btn.textContent='Онлайн оплата \u2192';
+    btn.disabled=false; btn.textContent='Visa · Mastercard · Google Pay · Приват24';
   }})
   .catch(()=>{{
     document.querySelector('#liqpay-form button').textContent='Помилка завантаження';
