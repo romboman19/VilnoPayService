@@ -246,7 +246,7 @@ def get_admin_session(token: str | None) -> dict | None:
     if not token:
         return None
     return pg_query(
-        """SELECT s.id, s.user_id, u.username
+        """SELECT s.id, s.user_id, u.username, u.role
            FROM admin_sessions s JOIN admin_users u ON u.id = s.user_id
            WHERE s.token = %s AND s.expires_at > NOW() AND u.is_active = TRUE""",
         (token,), fetchone=True

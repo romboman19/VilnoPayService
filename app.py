@@ -108,6 +108,12 @@ def _require_admin(request: Request) -> dict:
         raise HTTPException(401, "Unauthorized")
     return session
 
+def _require_manager(request: Request) -> dict:
+    session = _require_admin(request)
+    if session.get("role") != "manager":
+        raise HTTPException(403, "Доступ лише для менеджерів")
+    return session
+
 def build_open_data(receiver, iban, code, purpose, amount):
     iban = iban.replace(" ", "").strip()
     amt = f"UAH{amount.strip().replace(',', '.')}" if amount else ""
@@ -483,12 +489,12 @@ def admin_toggle_manager(request: Request, manager_id: int, body: dict):
 
 @app.get("/manager/templates")
 def manager_list_templates(request: Request):
-    session = _require_admin(request)
+    session = _require_manager(request)
     return list_templates(session["user_id"])
 
 @app.post("/manager/templates")
 def manager_create_template(request: Request, body: dict):
-    session = _require_admin(request)
+    session = _require_manager(request)
     name = body.get("name", "").strip()
     receiver_key = body.get("receiver_key", "").strip()
     purpose = body.get("purpose", "").strip()
@@ -499,7 +505,7 @@ def manager_create_template(request: Request, body: dict):
 
 @app.delete("/manager/templates/{template_id}")
 def manager_delete_template(request: Request, template_id: int):
-    session = _require_admin(request)
+    session = _require_manager(request)
     delete_template(template_id, session["user_id"])
     return {"ok": True}
 
@@ -508,7 +514,7 @@ def manager_delete_template(request: Request, template_id: int):
 
 @app.post("/manager/create-payment")
 def manager_create_payment(request: Request, body: dict):
-    session = _require_admin(request)
+    session = _require_manager(request)
     receiver_key = body.get("receiver_key", "").strip()
     purpose = body.get("purpose", "").strip()
     amount = body.get("amount", "").strip() or None
@@ -547,7 +553,7 @@ def manager_create_payment(request: Request, body: dict):
 
 @app.get("/manager/history")
 def manager_history(request: Request, limit: int = 50):
-    session = _require_admin(request)
+    session = _require_manager(request)
     from db import list_manager_payments
     return list_manager_payments(session.get("username", ""), limit)
 
@@ -556,7 +562,7 @@ def manager_history(request: Request, limit: int = 50):
 
 @app.get("/manager/receivers")
 def manager_receivers(request: Request):
-    _require_admin(request)
+    _require_manager(request)
     return list_receivers()
 
 
@@ -566,6 +572,7 @@ def manager_receivers(request: Request):
 @app.get("/manager", response_class=HTMLResponse)
 @app.get("/manager/", response_class=HTMLResponse)
 def manager_page(request: Request):
+    _require_manager(request)
     manager_html_path = Path(__file__).parent / "manager.html"
     if manager_html_path.exists():
         return HTMLResponse(manager_html_path.read_text(encoding="utf-8"))

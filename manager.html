@@ -137,8 +137,19 @@ async function api(method,url,body){
 
 async function doLogin(){
   const u=E('l-user').value.trim(),p=E('l-pass').value;
-  try{E('l-err').textContent='';const r=await api('POST','/admin/login',{username:u,password:p});
-    // Перевірити роль
+  try{
+    E('l-err').textContent='';
+    await api('POST','/admin/login',{username:u,password:p});
+    // Перевірити що це менеджер
+    try{
+      await api('GET','/manager/receivers');
+    }catch(e){
+      if(e.message.includes('403')||e.message.includes('Доступ')){
+        await api('POST','/admin/logout');
+        throw new Error('Цей кабінет лише для менеджерів');
+      }
+      throw e;
+    }
     const me=await api('GET','/admin/me');
     showDash(me.username);
   }catch(e){E('l-err').textContent=e.message;}
