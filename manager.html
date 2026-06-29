@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VilnoPay — Кабінет менеджера</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#F8F9FB;--card:#FFFFFF;--blue:#1D6F42;--blue-dk:#155733;--red:#D92D20;--green:#1D6F42;
+--text:#101828;--muted:#667085;--border:#EAECF0;--r:12px;--sh:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06)}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.login-card{background:var(--card);border-radius:var(--r);padding:40px 32px;max-width:380px;width:100%;box-shadow:var(--sh);border:1px solid var(--border)}
+.login-card h1{font-size:22px;margin-bottom:24px;text-align:center;font-weight:700}
+.fg{margin-bottom:16px}.fg label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.fg input,.fg textarea,.fg select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;transition:border .15s;font-family:inherit}
+.fg input:focus,.fg textarea:focus,.fg select:focus{border-color:var(--blue)}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .15s;font-family:inherit}
+.btn-blue{background:var(--blue);color:#fff}.btn-blue:hover{background:var(--blue-dk)}
+.btn-red{background:var(--red);color:#fff}
+.btn-green{background:var(--green);color:#fff}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-block{width:100%}
+.err{color:var(--red);font-size:13px;margin-top:8px}
+.dashboard{display:none}
+.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.topbar h1{font-size:18px;font-weight:700}
+.container{max-width:900px;margin:0 auto;padding:24px 16px}
+.tabs{display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap}
+.tab{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--muted);transition:all .15s}
+.tab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.panel{display:none}.panel.active{display:block}
+.card{background:var(--card);border-radius:var(--r);padding:20px;box-shadow:var(--sh);margin-bottom:16px;border:1px solid var(--border)}
+.card h2{font-size:16px;margin-bottom:16px;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)}
+th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+.mono{font-family:"SF Mono",monospace;font-size:12px}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+.badge-g{background:#F0FAF4;color:#1D6F42}.badge-r{background:#FEF3F2;color:#D92D20}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--text);color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;transform:translateY(10px);transition:all .3s;z-index:999}
+.toast.show{opacity:1;transform:none}
+.resp-table{overflow-x:auto}
+.result-box{background:#F9FAFB;border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:16px}
+.result-url{font-family:"SF Mono",monospace;font-size:13px;word-break:break-all;background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px}
+.result-qr{text-align:center;margin:10px 0}
+.result-qr img{max-width:240px;border-radius:12px;border:1px solid var(--border)}
+.flex{display:flex;gap:8px;align-items:center}
+.mt{margin-top:12px}
+.copy-btn{padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-weight:600;color:var(--blue);transition:all .15s;font-family:inherit}
+.copy-btn:active{transform:scale(.95)}
+.copy-btn.ok{color:var(--green);border-color:var(--green)}
+</style>
+</head>
+<body>
+
+<div class="login-wrap" id="sec-login">
+<div class="login-card">
+<h1>VilnoPay Менеджер</h1>
+<div class="fg"><label>Логін</label><input type="text" id="l-user" autocomplete="username"></div>
+<div class="fg"><label>Пароль</label><input type="password" id="l-pass" autocomplete="current-password"></div>
+<div class="err" id="l-err"></div>
+<button class="btn btn-blue btn-block mt" onclick="doLogin()">Увійти</button>
+</div>
+</div>
+
+<div class="dashboard" id="sec-dash">
+<div class="topbar">
+<h1>VilnoPay Менеджер</h1>
+<div class="flex"><span id="mgr-name" style="color:var(--muted);font-size:14px"></span>
+<button class="btn btn-outline btn-sm" onclick="doLogout()">Вийти</button></div>
+</div>
+<div class="container">
+<div class="tabs" id="tabs">
+<div class="tab active" data-t="pay">Створити платіж</div>
+<div class="tab" data-t="templates">Шаблони</div>
+<div class="tab" data-t="history">Історія</div>
+</div>
+
+<div class="panel active" id="p-pay">
+<div class="card">
+<h2>Новий платіж</h2>
+<div class="fg"><label>Отримувач</label><select id="pay-receiver"></select></div>
+<div class="fg"><label>Призначення платежу</label><input id="pay-purpose" placeholder="За товар HUNTER"></div>
+<div class="fg"><label>Сума (грн, опціонально)</label><input id="pay-amount" type="text" placeholder="1500 або 1500.00"></div>
+<div class="err" id="pay-err"></div>
+<div class="flex mt">
+<button class="btn btn-green" onclick="createPayment()">Створити платіж</button>
+<button class="btn btn-outline" onclick="loadTemplatesForSelect()">Завантажити шаблон</button>
+</div>
+<div id="pay-result"></div>
+</div>
+</div>
+
+<div class="panel" id="p-templates">
+<div class="card">
+<h2>Шаблони платежів</h2>
+<div id="tpl-tbl"></div>
+</div>
+<div class="card">
+<h2>Новий шаблон</h2>
+<div class="fg"><label>Назва шаблону</label><input id="tpl-name" placeholder="За товар HUNTER"></div>
+<div class="fg"><label>Отримувач</label><select id="tpl-receiver"></select></div>
+<div class="fg"><label>Призначення</label><input id="tpl-purpose" placeholder="За товар"></div>
+<div class="fg"><label>Сума за замовчуванням (опц.)</label><input id="tpl-amount" type="text" placeholder="1500"></div>
+<div class="err" id="tpl-err"></div>
+<div class="flex mt"><button class="btn btn-blue" onclick="saveTemplate()">Зберегти шаблон</button></div>
+</div>
+</div>
+
+<div class="panel" id="p-history">
+<div class="card"><h2>Історія платежів</h2><div id="hist-tbl"></div></div>
+</div>
+
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const E=id=>document.getElementById(id);
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function toast(m){const t=E('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+async function api(method,url,body){
+  const o={method,headers:{'Content-Type':'application/json'},credentials:'same-origin'};
+  if(body)o.body=JSON.stringify(body);
+  const r=await fetch(url,o);
+  if(r.status===401&&!url.includes('/login')){showLogin();throw new Error('Session expired');}
+  const d=await r.json();if(!r.ok)throw new Error(d.detail||'Помилка');return d;
+}
+
+async function doLogin(){
+  const u=E('l-user').value.trim(),p=E('l-pass').value;
+  try{E('l-err').textContent='';const r=await api('POST','/admin/login',{username:u,password:p});
+    // Перевірити роль
+    const me=await api('GET','/admin/me');
+    showDash(me.username);
+  }catch(e){E('l-err').textContent=e.message;}
+}
+async function doLogout(){try{await api('POST','/admin/logout');}catch(e){}showLogin();}
+function showLogin(){E('sec-login').style.display='flex';E('sec-dash').style.display='none';}
+function showDash(name){E('sec-login').style.display='none';E('sec-dash').style.display='block';E('mgr-name').textContent=name;loadAll();}
+
+E('tabs').addEventListener('click',e=>{
+  const t=e.target.closest('.tab');if(!t)return;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');E('p-'+t.dataset.t).classList.add('active');
+});
+
+function loadAll(){loadReceivers();loadTemplates();loadHistory();}
+
+async function loadReceivers(){
+  try{
+    const rows=await api('GET','/manager/receivers');
+    const opts=rows.map(r=>`<option value="${esc(r.receiver_key)}">${esc(r.name)} — ${esc(r.receiver)}</option>`).join('');
+    E('pay-receiver').innerHTML=opts;
+    E('tpl-receiver').innerHTML=opts;
+  }catch(e){toast('Помилка: '+e.message);}
+}
+
+async function createPayment(){
+  const receiver_key=E('pay-receiver').value;
+  const purpose=E('pay-purpose').value.trim();
+  const amount=E('pay-amount').value.trim();
+  try{
+    E('pay-err').textContent='';
+    const r=await api('POST','/manager/create-payment',{receiver_key,purpose,amount});
+    E('pay-result').innerHTML=`
+      <div class="result-box">
+        <div class="result-qr"><img src="data:image/png;base64,${r.qr_base64}" alt="QR"></div>
+        <div class="result-url">${esc(r.pay_url)}</div>
+        <div class="flex" style="gap:8px">
+          <button class="copy-btn" onclick="copyText(this,'${esc(r.pay_url)}')">Скопіювати посилання</button>
+          <a class="btn btn-blue btn-sm" href="${esc(r.nbu_url)}" target="_blank">Відкрити QR НБУ</a>
+          <a class="btn btn-outline btn-sm" href="${esc(r.pay_url)}" target="_blank">Відкрити сторінку</a>
+        </div>
+      </div>`;
+    toast('Платіж створений');
+    loadHistory();
+  }catch(e){E('pay-err').textContent=e.message;}
+}
+
+function copyText(btn,text){
+  navigator.clipboard.writeText(text).then(()=>{btn.classList.add('ok');btn.textContent='✓ Скопійовано';
+    setTimeout(()=>{btn.classList.remove('ok');btn.textContent='Скопіювати посилання';},2500);});
+}
+
+async function loadTemplates(){
+  try{
+    const rows=await api('GET','/manager/templates');const el=E('tpl-tbl');
+    if(!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає шаблонів</p>';return;}
+    let h='<div class="resp-table"><table><thead><tr><th>Назва</th><th>Отримувач</th><th>Призначення</th><th>Сума</th><th></th></tr></thead><tbody>';
+    for(const r of rows){
+      h+=`<tr><td><strong>${esc(r.name)}</strong></td><td class="mono">${esc(r.receiver_key)}</td><td>${esc(r.purpose)}</td><td>${esc(r.default_amount||'—')}</td><td><button class="btn btn-outline btn-sm" onclick="useTemplate(${r.id},'${esc(r.receiver_key)}','${esc(r.purpose).replace(/'/g,'\\\'')}','${esc(r.default_amount||'')}')">Використати</button> <button class="btn btn-red btn-sm" onclick="delTemplate(${r.id})">🗑</button></td></tr>`;
+    }
+    h+='</tbody></table></div>';el.innerHTML=h;
+  }catch(e){toast('Помилка: '+e.message);}
+}
+
+function useTemplate(id,receiver_key,purpose,amount){
+  E('pay-receiver').value=receiver_key;
+  E('pay-purpose').value=purpose;
+  E('pay-amount').value=amount;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  document.querySelector('[data-t="pay"]').classList.add('active');
+  E('p-pay').classList.add('active');
+  toast('Шаблон завантажено');
+}
+
+async function saveTemplate(){
+  const name=E('tpl-name').value.trim();
+  const receiver_key=E('tpl-receiver').value;
+  const purpose=E('tpl-purpose').value.trim();
+  const default_amount=E('tpl-amount').value.trim();
+  try{
+    E('tpl-err').textContent='';
+    if(!name){E('tpl-err').textContent='Введіть назву';return;}
+    await api('POST','/manager/templates',{name,receiver_key,purpose,default_amount});
+    E('tpl-name').value='';E('tpl-purpose').value='';E('tpl-amount').value='';
+    toast('Шаблон створений');loadTemplates();
+  }catch(e){E('tpl-err').textContent=e.message;}
+}
+
+async function delTemplate(id){
+  if(!confirm('Видалити шаблон?'))return;
+  try{await api('DELETE','/manager/templates/'+id);toast('Видалено');loadTemplates();}catch(e){toast('Помилка: '+e.message);}
+}
+
+function loadTemplatesForSelect(){
+  // Перейти на вкладку шаблонів
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  document.querySelector('[data-t="templates"]').classList.add('active');
+  E('p-templates').classList.add('active');
+}
+
+async function loadHistory(){
+  try{
+    const rows=await api('GET','/manager/history');const el=E('hist-tbl');
+    if(!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає платежів</p>';return;}
+    let h='<div class="resp-table"><table><thead><tr><th>ID</th><th>Отримувач</th><th>Призначення</th><th>Сума</th><th>Час</th></tr></thead><tbody>';
+    for(const r of rows){
+      h+=`<tr><td class="mono">${esc(r.link_id)}</td><td class="mono">${esc(r.receiver_key)}</td><td>${esc(r.purpose)}</td><td>${esc(r.amount||'—')}</td><td>${r.created_at||'—'}</td></tr>`;
+    }
+    h+='</tbody></table></div>';el.innerHTML=h;
+  }catch(e){el.innerHTML='<p style="color:var(--muted)">Помилка завантаження</p>';}
+}
+
+(async()=>{
+  try{const r=await api('GET','/admin/me');showDash(r.username);}catch(e){showLogin();}
+})();
+</script>
+</body>
+</html>

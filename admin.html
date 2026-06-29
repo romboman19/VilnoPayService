@@ -84,6 +84,7 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div class="tab" data-t="keys">API ключі</div>
 <div class="tab" data-t="log">Лог посилань</div>
 <div class="tab" data-t="views">Перегляди</div>
+<div class="tab" data-t="mgrs">Менеджери</div>
 </div>
 
 <div class="panel active" id="p-rcv">
@@ -181,6 +182,15 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div class="card"><h2>Лог переглядів клієнтами</h2><div id="views-tbl"></div></div>
 </div>
 
+
+<div class="panel" id="p-mgrs">
+<div class="card"><h2>Менеджери</h2><div id="mgr-tbl"></div>
+<div class="flex mt"><input id="mgr-user" placeholder="Логін" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit">
+<input id="mgr-pass" type="password" placeholder="Пароль" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit">
+<button class="btn btn-blue" onclick="createManager()">Створити</button></div>
+</div>
+</div>
+
 </div>
 </div>
 
@@ -225,7 +235,7 @@ E('tabs').addEventListener('click',e=>{
   t.classList.add('active');E('p-'+t.dataset.t).classList.add('active');
 });
 
-function loadAll(){loadRcv();loadBrand();loadKeys();loadLog();loadViews();}
+function loadAll(){loadRcv();loadBrand();loadKeys();loadLog();loadViews();loadManagers();}
 
 // LOGO UPLOAD
 E('logo-file').addEventListener('change',async function(){
@@ -355,6 +365,34 @@ async function loadViews(){
     h+='</tbody></table></div>';el.innerHTML=h;
   }catch(e){toast('Помилка: '+e.message);}
 }
+
+// MANAGERS
+async function loadManagers(){
+  try{
+    const rows=await api('GET','/admin/managers');const el=E('mgr-tbl');
+    if(!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає менеджерів</p>';return;}
+    let h='<div class="resp-table"><table><thead><tr><th>ID</th><th>Логін</th><th>Статус</th><th>Створено</th><th></th></tr></thead><tbody>';
+    for(const r of rows){
+      const b=r.is_active?'<span class="badge badge-g">Активний</span>':'<span class="badge badge-r">Вимкнено</span>';
+      h+=`<tr><td>${r.id}</td><td>${esc(r.username)}</td><td>${b}</td><td>${r.created_at||'—'}</td><td><button class="btn btn-outline btn-sm" onclick="toggleManager(${r.id},${!r.is_active})">${r.is_active?'Вимкнути':'Увімкнути'}</button> <button class="btn btn-red btn-sm" onclick="delManager(${r.id})">🗑</button></td></tr>`;
+    }
+    h+='</tbody></table></div>';el.innerHTML=h;
+  }catch(e){toast('Помилка: '+e.message);}
+}
+async function createManager(){
+  const u=E('mgr-user').value.trim(),p=E('mgr-pass').value;
+  if(!u||!p){toast('Введіть логін і пароль');return;}
+  try{await api('POST','/admin/managers',{username:u,password:p,name:u});toast('Менеджер створений');E('mgr-user').value='';E('mgr-pass').value='';loadManagers();}
+  catch(e){toast('Помилка: '+e.message);}
+}
+async function delManager(id){
+  if(!confirm('Видалити менеджера?'))return;
+  try{await api('DELETE','/admin/managers/'+id);toast('Видалено');loadManagers();}catch(e){toast('Помилка: '+e.message);}
+}
+async function toggleManager(id,active){
+  try{await api('PUT','/admin/managers/'+id+'/toggle',{is_active:active});toast(active?'Увімкнено':'Вимкнено');loadManagers();}catch(e){toast('Помилка: '+e.message);}
+}
+
 
 // INIT
 (async()=>{

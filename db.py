@@ -97,6 +97,19 @@ def _migrate():
         )''',
         "CREATE INDEX IF NOT EXISTS idx_page_views_link ON page_views_log(link_id)",
         "CREATE INDEX IF NOT EXISTS idx_page_views_viewed ON page_views_log(viewed_at)",
+        # Ролі
+        "ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'admin'",
+        # Шаблони платежів
+        """CREATE TABLE IF NOT EXISTS payment_templates (
+            id              SERIAL PRIMARY KEY,
+            manager_id      INTEGER REFERENCES admin_users(id) ON DELETE CASCADE,
+            name            VARCHAR(100) NOT NULL,
+            receiver_key    VARCHAR(50) NOT NULL,
+            purpose         TEXT NOT NULL,
+            default_amount  VARCHAR(20),
+            created_at      TIMESTAMPTZ DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_templates_manager ON payment_templates(manager_id)",
     ]
     for sql in migrations:
         try:
@@ -279,3 +292,88 @@ def list_page_views_for_link(link_id, limit=50):
         "SELECT * FROM page_views_log WHERE link_id = %s ORDER BY viewed_at DESC LIMIT %s",
         (link_id, min(limit, 200)), fetchall=True
     ) or []
+
+
+# ── Managers CRUD ──────────────────────────────────────────
+
+def create_manager(username, password, name=""):
+    """Створити менеджера."""
+    pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    pg_execute(
+        "INSERT INTO admin_users (username, password_hash, role) VALUES (%s, %s, 'manager')",
+        (username, pw_hash)
+    )
+    row = pg_query("SELECT id, username, role, is_active, created_at FROM admin_users WHERE username = %s AND role = 'manager'",
+                    (username,), fetchone=True)
+    if row and row.get("created_at"):
+        row["created_at"] = str(row["created_at"])
+    return row
+
+
+def list_managers():
+    rows = pg_query(
+        "SELECT id, username, role, is_active, created_at FROM admin_users WHERE role = 'manager' ORDER BY created_at DESC",
+        fetchall=True
+    ) or []
+    for r in rows:
+        if r.get("created_at"):
+            r["created_at"] = str(r["created_at"])
+    return rows
+
+
+def delete_manager(manager_id):
+    pg_execute("DELETE FROM admin_users WHERE id = %s AND role = 'manager'", (manager_id,))
+
+
+def toggle_manager(manager_id, is_active):
+    pg_execute("UPDATE admin_users SET is_active = %s WHERE id = %s AND role = 'manager'", (is_active, manager_id))
+
+
+# ── Payment Templates ──────────────────────────────────────
+
+def create_template(manager_id, name, receiver_key, purpose, default_amount=None):
+    pg_execute(
+        """INSERT INTO payment_templates (manager_id, name, receiver_key, purpose, default_amount)
+           VALUES (%s, %s, %s, %s, %s)""",
+        (manager_id, name, receiver_key, purpose, default_amount)
+    )
+    row = pg_query(
+        "SELECT * FROM payment_templates WHERE manager_id = %s AND name = %s ORDER BY created_at DESC LIMIT 1",
+        (manager_id, name), fetchone=True
+    )
+    if row and row.get("created_at"):
+        row["created_at"] = str(row["created_at"])
+    return row
+
+
+def list_templates(manager_id):
+    rows = pg_query(
+        "SELECT * FROM payment_templates WHERE manager_id = %s ORDER BY created_at DESC",
+        (manager_id,), fetchall=True
+    ) or []
+    for r in rows:
+        if r.get("created_at"):
+            r["created_at"] = str(r["created_at"])
+    return rows
+
+
+def delete_template(template_id, manager_id):
+    pg_execute("DELETE FROM payment_templates WHERE id = %s AND manager_id = %s", (template_id, manager_id))
+
+
+# ── Manager payment history ───────────────────────────────
+
+def list_manager_payments(manager_username, limit=50):
+    """Історія платежів менеджера (по api_key_prefix або по created_ip)."""
+    rows = pg_query(
+        """SELECT pl.*, au.username as manager FROM payment_links_log pl
+           JOIN api_keys ak ON pl.api_key_prefix = ak.key_prefix
+           JOIN admin_users au ON ak.label LIKE 'manager_%%' AND au.username = REPLACE(ak.label, 'manager_', '')
+           WHERE au.username = %s
+           ORDER BY pl.created_at DESC LIMIT %s""",
+        (manager_username, min(limit, 200)), fetchall=True
+    ) or []
+    for r in rows:
+        if r.get("created_at"):
+            r["created_at"] = str(r["created_at"])
+    return rows

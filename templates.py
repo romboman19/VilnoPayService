@@ -160,7 +160,7 @@ body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif
 .sec-label{{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}}
 
 /* Pay button */
-.pay-btn{{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 20px;border-radius:var(--rs);border:none;background:var(--primary);color:#fff;font-size:15px;font-weight:600;letter-spacing:-.01em;cursor:pointer;transition:all var(--t);font-family:inherit}}
+.pay-btn{{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 20px;border-radius:var(--rs);border:none;background:var(--primary);color:#fff;font-size:15px;font-weight:600;letter-spacing:-.01em;cursor:pointer;transition:all var(--t);font-family:inherit;text-decoration:none}}
 .pay-btn:active{{transform:scale(.97)}}
 .pay-btn.sharing{{opacity:.6}}
 .pay-btn svg{{flex-shrink:0}}
@@ -216,22 +216,21 @@ body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif
 </div>
 
 <div class="section">
-<button class="pay-btn" id="share-btn" onclick="shareQR()">
-{BANK_ICON} Оплатити через банк
-</button>
-<div class="hint-steps">
-<div class="hint-step"><span class="hint-step-num">1</span><span>Натисніть кнопку вище «Оплатити через банк»</span></div>
-<div class="hint-step"><span class="hint-step-num">2</span><span>Оберіть додаток вашого банку у вікні</span></div>
-<div class="hint-step"><span class="hint-step-num">3</span><span>Підтвердьте платіж у додатку банку</span></div>
-</div>
+<a class="pay-btn" href="{nbu}" target="_blank" rel="noopener">
+{BANK_ICON} Оплатити через додаток банку
+</a>
 </div>
 
-<div class="divider"><span>або відскануйте QR-код</span></div>
 
 <div class="section">
 <div class="qr-wrap">
 <img class="qr-img" id="qr-image" src="data:image/png;base64,{qr_b64}" alt="QR код" loading="eager" onclick="shareQR()">
-<div class="qr-tap">Натисніть на QR-код, щоб поділитися з додатком банку</div>
+<div class="qr-tap">Для оплати через додаток банку (Android):</div>
+<div class="hint-steps" style="text-align:left;margin-top:10px">
+<div class="hint-step"><span class="hint-step-num">1</span><span>Натисніть на QR-код, щоб поділитися з додатком банку</span></div>
+<div class="hint-step"><span class="hint-step-num">2</span><span>Оберіть додаток вашого банку у вікні</span></div>
+<div class="hint-step"><span class="hint-step-num">3</span><span>Підтвердьте платіж у додатку банку</span></div>
+</div>
 </div>
 </div>
 

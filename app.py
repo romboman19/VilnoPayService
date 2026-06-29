@@ -27,6 +27,8 @@ from db import (
     create_admin_session, get_admin_session, delete_admin_session,
     log_payment_link, log_page_view, list_page_views, list_page_views_for_link,
     cleanup_expired_sessions,
+    create_manager, list_managers, delete_manager, toggle_manager,
+    create_template, list_templates, delete_template,
 )
 from templates import pay_page_html, expired_page_html
 
@@ -69,7 +71,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         resp.headers["X-Content-Type-Options"] = "nosniff"
         resp.headers["X-Frame-Options"] = "DENY"
         resp.headers["Referrer-Policy"] = "no-referrer"
-        if request.url.path.startswith("/admin"):
+        if request.url.path.startswith("/admin") or request.url.path.startswith("/manager"):
             resp.headers["Content-Security-Policy"] = \
                 "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' https://fonts.gstatic.com"
         else:
@@ -447,6 +449,134 @@ def admin_links_log(request: Request, limit: int = 50):
     for r in rows:
         if r.get("created_at"): r["created_at"] = str(r["created_at"])
     return rows
+
+
+
+
+# ── Admin: Managers ─────────────────────────────────────────
+
+@app.get("/admin/managers")
+def admin_list_managers(request: Request):
+    _require_admin(request)
+    return list_managers()
+
+@app.post("/admin/managers")
+def admin_create_manager(request: Request, body: dict):
+    _require_admin(request)
+    username = body.get("username", "").strip()
+    password = body.get("password", "")
+    name = body.get("name", "").strip()
+    if not username or not password:
+        raise HTTPException(400, "Логін і пароль обов'язкові")
+    if len(password) < 6:
+        raise HTTPException(400, "Пароль мінімум 6 символів")
+    existing = pg_query("SELECT id FROM admin_users WHERE username = %s", (username,), fetchone=True)
+    if existing:
+        raise HTTPException(400, "Користувач вже існує")
+    mgr = create_manager(username, password, name)
+    logger.info("MANAGER_CREATED user=%s", username)
+    return mgr or {"ok": True}
+
+@app.delete("/admin/managers/{manager_id}")
+def admin_delete_manager(request: Request, manager_id: int):
+    _require_admin(request)
+    delete_manager(manager_id)
+    logger.info("MANAGER_DELETED id=%s", manager_id)
+    return {"ok": True}
+
+@app.put("/admin/managers/{manager_id}/toggle")
+def admin_toggle_manager(request: Request, manager_id: int, body: dict):
+    _require_admin(request)
+    toggle_manager(manager_id, body.get("is_active", True))
+    return {"ok": True}
+
+
+# ── Manager: Templates ───────────────────────────────────────
+
+@app.get("/manager/templates")
+def manager_list_templates(request: Request):
+    session = _require_admin(request)
+    return list_templates(session["user_id"])
+
+@app.post("/manager/templates")
+def manager_create_template(request: Request, body: dict):
+    session = _require_admin(request)
+    name = body.get("name", "").strip()
+    receiver_key = body.get("receiver_key", "").strip()
+    purpose = body.get("purpose", "").strip()
+    default_amount = body.get("default_amount", "").strip() or None
+    if not name or not receiver_key or not purpose:
+        raise HTTPException(400, "Назва, отримувач і призначення обов'язкові")
+    return create_template(session["user_id"], name, receiver_key, purpose, default_amount)
+
+@app.delete("/manager/templates/{template_id}")
+def manager_delete_template(request: Request, template_id: int):
+    session = _require_admin(request)
+    delete_template(template_id, session["user_id"])
+    return {"ok": True}
+
+
+# ── Manager: Create payment ─────────────────────────────────
+
+@app.post("/manager/create-payment")
+def manager_create_payment(request: Request, body: dict):
+    session = _require_admin(request)
+    receiver_key = body.get("receiver_key", "").strip()
+    purpose = body.get("purpose", "").strip()
+    amount = body.get("amount", "").strip() or None
+    if not receiver_key or not purpose:
+        raise HTTPException(400, "Отримувач і призначення обов'язкові")
+    # Використовуємо існуючу логіку generate
+    rcv = get_receiver_by_key(receiver_key)
+    if not rcv or not rcv["is_active"]:
+        raise HTTPException(404, "Отримувач не знайдений або неактивний")
+    open_data = build_open_data(rcv["receiver"], rcv["iban"], rcv["edrpou"], purpose, amount)
+    nbu_token = to_nbu_token(open_data)
+    nbu_url = f"https://bank.gov.ua/qr/{nbu_token}"
+    link_id = secrets.token_urlsafe(12)
+    pay_url = f"{BASE_URL}/p/{link_id}"
+    ttl = get_link_ttl()
+    payload = {
+        "receiver_key": receiver_key,
+        "receiver": rcv["receiver"], "iban": rcv["iban"], "code": rcv["edrpou"],
+        "purpose": purpose, "amount": amount or "",
+        "nbu_token": nbu_token, "nbu_url": nbu_url,
+        "created_at": int(time.time()),
+        "created_ip": get_remote_address(request)
+    }
+    rdb.setex(f"pay:{link_id}", ttl * 3600, json.dumps(payload))
+    log_payment_link(link_id, receiver_key, purpose, amount, f"manager_{session.get('username','')}", get_remote_address(request))
+    qr_b64 = base64.b64encode(generate_qr_png_bytes(pay_url)).decode("ascii")
+    logger.info("MANAGER_PAYMENT id=%s manager=%s rcv=%s", link_id, session.get("username"), receiver_key)
+    return {"pay_url": pay_url, "nbu_url": nbu_url, "qr_base64": qr_b64, "link_id": link_id}
+
+
+# ── Manager: History ────────────────────────────────────────
+
+@app.get("/manager/history")
+def manager_history(request: Request, limit: int = 50):
+    session = _require_admin(request)
+    from db import list_manager_payments
+    return list_manager_payments(session.get("username", ""), limit)
+
+
+# ── Manager: Receivers list ─────────────────────────────────
+
+@app.get("/manager/receivers")
+def manager_receivers(request: Request):
+    _require_admin(request)
+    return list_receivers()
+
+
+# ── Manager HTML ────────────────────────────────────────────
+
+@app.get("/manager", response_class=HTMLResponse)
+@app.get("/manager/", response_class=HTMLResponse)
+def manager_page(request: Request):
+    manager_html_path = Path(__file__).parent / "manager.html"
+    if manager_html_path.exists():
+        return HTMLResponse(manager_html_path.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>manager.html not found</h1>", status_code=500)
 
 
 # ── Admin HTML Page ──────────────────────────────────────────

@@ -131,3 +131,19 @@ CREATE TRIGGER trg_receivers_updated
 CREATE TRIGGER trg_settings_updated
     BEFORE UPDATE ON settings
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+-- ── Менеджери (ролі) ────────────────────────────────────────
+-- admin_users.role: 'admin' або 'manager'
+ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'admin';
+
+-- ── Шаблони платежів для менеджерів ─────────────────────────
+CREATE TABLE IF NOT EXISTS payment_templates (
+    id              SERIAL PRIMARY KEY,
+    manager_id      INTEGER REFERENCES admin_users(id) ON DELETE CASCADE,
+    name            VARCHAR(100) NOT NULL,           -- назва шаблону
+    receiver_key    VARCHAR(50) NOT NULL,             -- отримувач
+    purpose         TEXT NOT NULL,                    -- призначення
+    default_amount  VARCHAR(20),                     -- сума за замовчуванням (опціонально)
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_templates_manager ON payment_templates(manager_id);
+
