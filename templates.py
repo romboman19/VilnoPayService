@@ -92,7 +92,7 @@ updateTTL();setInterval(updateTTL,1000);
 
 def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
                   hours_left, settings=None, logo_url="", link_id="", code="", ttl_seconds=0,
-                  invoice_url=None):
+                  invoice_url=None, providers=None, block_order=None, liqpay_paid=None):
     s = settings or {}
     bg, pc, ac, tc, cc_color, bc, ff, fs, cc = _css_vars(s)
     pt = _e(s.get("page_title", "VilnoPay"))
@@ -141,6 +141,51 @@ def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
 </div>
 </div>
 """
+
+    # ── Динамічний порядок блоків ──
+    if block_order is None:
+        block_order = ["nbu_qr", "liqpay", "requisites"]
+
+    # NBU QR блок
+    nbu_qr_block = f"""<div class="section">
+<a class="pay-btn" href="{{nbu}}" target="_blank" rel="noopener">
+{{BANK_ICON}} Оплатити через додаток банку
+</a>
+</div>
+
+
+<div class="section">
+<div class="qr-wrap">
+<img class="qr-img" id="qr-image" src="data:image/png;base64,{{qr_b64}}" alt="QR код" loading="eager" onclick="shareQR()">
+<div class="qr-tap">Для оплати через додаток банку (Android):</div>
+<div class="hint-steps" style="text-align:left;margin-top:10px">
+<div class="hint-step"><span class="hint-step-num">1</span><span>Натисніть на QR-код, щоб поділитися з додатком банку</span></div>
+<div class="hint-step"><span class="hint-step-num">2</span><span>Оберіть додаток вашого банку у вікні</span></div>
+<div class="hint-step"><span class="hint-step-num">3</span><span>Підтвердьте платіж у додатку банку</span></div>
+</div>
+</div>
+</div>"""
+
+    # LiqPay блок
+    liqpay_block = ""
+    lp = next((p for p in (providers or []) if p.get("provider_type") == "liqpay"), None)
+    if lp:
+        amt_raw = amount_line.replace(" грн", "").replace("за домовленістю", "").strip()
+        liqpay_block = liqpay_block_html(link_id, lp, amt_raw, liqpay_paid)
+
+    # Реквізити блок
+    requisites_block = f"""<div class="section">
+<div class="sec-label">Реквізити для переказу</div>
+{{reqs}}
+<button class="copy-all" onclick="copyAll(this)">Скопіювати всі реквізити</button>
+</div>"""
+
+    block_map = {
+        "nbu_qr": nbu_qr_block,
+        "liqpay": liqpay_block,
+        "requisites": requisites_block,
+    }
+    blocks_html = "\n".join(block_map.get(b, "") for b in block_order)
 
     return f"""<!DOCTYPE html>
 <html lang="uk"><head>
@@ -247,30 +292,7 @@ body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif
 <div class="amount-purpose">{purpose}</div>
 </div>
 
-<div class="section">
-<a class="pay-btn" href="{nbu}" target="_blank" rel="noopener">
-{BANK_ICON} Оплатити через додаток банку
-</a>
-</div>
-
-
-<div class="section">
-<div class="qr-wrap">
-<img class="qr-img" id="qr-image" src="data:image/png;base64,{qr_b64}" alt="QR код" loading="eager" onclick="shareQR()">
-<div class="qr-tap">Для оплати через додаток банку (Android):</div>
-<div class="hint-steps" style="text-align:left;margin-top:10px">
-<div class="hint-step"><span class="hint-step-num">1</span><span>Натисніть на QR-код, щоб поділитися з додатком банку</span></div>
-<div class="hint-step"><span class="hint-step-num">2</span><span>Оберіть додаток вашого банку у вікні</span></div>
-<div class="hint-step"><span class="hint-step-num">3</span><span>Підтвердьте платіж у додатку банку</span></div>
-</div>
-</div>
-</div>
-
-<div class="section">
-<div class="sec-label">Реквізити для переказу</div>
-{reqs}
-<button class="copy-all" onclick="copyAll(this)">Скопіювати всі реквізити</button>
-</div>
+{blocks_html}
 
 {invoice_block}
 <div class="footer">{ft}</div>
@@ -295,3 +317,201 @@ p{font-size:14px;color:#667085;line-height:1.5}.footer{margin-top:24px;font-size
 <h2>Посилання застаріло</h2>
 <p>Термін дії цього платіжного посилання закінчився. Зверніться до продавця для нового посилання.</p>
 <div class="footer">VilnoPayService</div></div></body></html>"""
+
+def liqpay_block_html(link_id, provider, amount_raw, liqpay_paid=None):
+    """Генерує HTML-блок LiqPay для сторінки оплати."""
+    if liqpay_paid and liqpay_paid.get("status") in ("success", "sandbox"):
+        amt = liqpay_paid.get("amount", "")
+        return f'''<div class="section" style="background:#F0FAF4;border-color:#A9D6B8">
+<div style="text-align:center;padding:16px 0">
+<div style="font-size:48px;margin-bottom:8px">\u2705</div>
+<div style="font-size:18px;font-weight:700;color:#1D6F42">Оплата пройшла успiшно</div>
+<div style="font-size:14px;color:#667085;margin-top:4px">Сума: {_h.escape(str(amt))} грн</div>
+</div></div>'''
+
+    if not amount_raw:
+        return '''<div class="section">
+<div style="text-align:center;padding:12px 0;color:var(--muted);font-size:13px">
+Оплата LiqPay недоступна: сума не вказана</div></div>'''
+
+    mode = provider.get("display_mode", "widget")
+    lid = _h.escape(link_id, quote=True)
+
+    if mode == "widget":
+        return f'''<div class="section" id="liqpay-section">
+<div class="sec-label">\U0001F4B3 Оплата карткою</div>
+<div id="liqpay-widget-container" style="min-height:200px;display:flex;align-items:center;justify-content:center">
+<div style="color:var(--muted);font-size:13px">Завантаження...</div>
+</div>
+<script src="https://static.liqpay.ua/libjs/checkout.js"></script>
+<script>
+(function(){{
+  fetch('/liqpay/checkout-data/{lid}')
+    .then(r=>r.json())
+    .then(d=>{{
+      if(d.data && d.signature){{
+        LiqPayCheckout.init({{
+          data: d.data,
+          signature: d.signature,
+          embedTo: "#liqpay-widget-container",
+          mode: "embed"
+        }}).on("liqpay.callback", function(data){{
+          if(data.status==="success"||data.status==="sandbox"){{
+            document.getElementById('liqpay-section').innerHTML=
+              '<div style="text-align:center;padding:20px"><div style="font-size:48px">\u2705</div>'
+              +'<div style="font-size:18px;font-weight:700;color:#1D6F42;margin-top:8px">Оплата успiшна!</div></div>';
+          }}
+        }});
+      }} else {{
+        document.getElementById('liqpay-widget-container').innerHTML=
+          '<div style="color:#D92D20;font-size:13px">Не вдалося завантажити форму оплати</div>';
+      }}
+    }})
+    .catch(()=>{{
+      document.getElementById('liqpay-widget-container').innerHTML=
+        '<div style="color:#D92D20;font-size:13px">Помилка завантаження</div>';
+    }});
+}})();
+</script>
+</div>'''
+
+    elif mode == "button":
+        return f'''<div class="section" id="liqpay-section">
+<div class="sec-label">\U0001F4B3 Оплата карткою</div>
+<button class="pay-btn" id="liqpay-pay-btn" onclick="liqpayPay()" style="background:#7ab72b">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+Оплатити через LiqPay
+</button>
+<script>
+function liqpayPay(){{
+  var btn=document.getElementById('liqpay-pay-btn');
+  btn.disabled=true; btn.textContent='Завантаження...';
+  fetch('/liqpay/checkout-data/{lid}')
+    .then(r=>r.json())
+    .then(d=>{{
+      if(!d.data||!d.signature)throw new Error('no data');
+      var f=document.createElement('form');
+      f.method='POST'; f.action='https://www.liqpay.ua/api/3/checkout'; f.target='_blank';
+      var i1=document.createElement('input'); i1.type='hidden'; i1.name='data'; i1.value=d.data;
+      var i2=document.createElement('input'); i2.type='hidden'; i2.name='signature'; i2.value=d.signature;
+      f.appendChild(i1); f.appendChild(i2); document.body.appendChild(f); f.submit();
+      btn.disabled=false; btn.textContent='Оплатити через LiqPay';
+    }})
+    .catch(()=>{{ btn.disabled=false; btn.textContent='Оплатити через LiqPay'; }});
+}}
+</script>
+</div>'''
+
+    elif mode == "redirect":
+        return f'''<div class="section" id="liqpay-section">
+<div class="sec-label">\U0001F4B3 Оплата карткою</div>
+<form id="liqpay-form" method="POST" action="https://www.liqpay.ua/api/3/checkout">
+<input type="hidden" name="data" id="liqpay-data">
+<input type="hidden" name="signature" id="liqpay-sig">
+<button type="submit" class="pay-btn" style="background:#7ab72b" disabled>Завантаження...</button>
+</form>
+<script>
+fetch('/liqpay/checkout-data/{lid}')
+  .then(r=>r.json())
+  .then(d=>{{
+    document.getElementById('liqpay-data').value=d.data;
+    document.getElementById('liqpay-sig').value=d.signature;
+    var btn=document.querySelector('#liqpay-form button');
+    btn.disabled=false; btn.textContent='Оплатити через LiqPay \u2192';
+  }})
+  .catch(()=>{{
+    document.querySelector('#liqpay-form button').textContent='Помилка завантаження';
+  }});
+</script>
+</div>'''
+
+    return ""
+
+
+def liqpay_result_html(tx, settings=None, logo_url=""):
+    """Сторінка результату пiсля повернення з LiqPay."""
+    s = settings or {}
+    bg = _h.escape(s.get("bg_color", "#F8F9FB"))
+    cc_color = _h.escape(s.get("card_color", "#FFFFFF"))
+    bc = _h.escape(s.get("border_color", "#EAECF0"))
+    pc = _h.escape(s.get("primary_color", "#1D6F42"))
+    tc = _h.escape(s.get("text_color", "#101828"))
+    pt = _h.escape(s.get("page_title", "VilnoPay"))
+    lu = _h.escape(logo_url) if logo_url else ""
+    logo = f'<img src="{lu}" alt="Logo" style="max-height:44px;margin-bottom:8px;border-radius:8px;">' if lu else ""
+
+    if tx and tx.get("status") in ("success", "sandbox"):
+        icon = "\u2705"
+        title = "Оплата успiшна"
+        desc = f"Сума: {tx.get('amount', '\u2014')} {tx.get('currency', 'UAH')}"
+        color = "#1D6F42"
+    elif tx and tx.get("status") == "failure":
+        icon = "\u274C"
+        title = "Оплата не пройшла"
+        desc = "Спробуйте ще раз або використайте iнший спосiб оплати"
+        color = "#D92D20"
+    else:
+        icon = "\u23F3"
+        title = "Обробка оплати"
+        desc = "Зачекайте — статус оновиться автоматично"
+        color = "#F59E0B"
+
+    # ── Динамічний порядок блоків ──
+    if block_order is None:
+        block_order = ["nbu_qr", "liqpay", "requisites"]
+
+    # NBU QR блок
+    nbu_qr_block = f"""<div class="section">
+<a class="pay-btn" href="{{nbu}}" target="_blank" rel="noopener">
+{{BANK_ICON}} Оплатити через додаток банку
+</a>
+</div>
+
+
+<div class="section">
+<div class="qr-wrap">
+<img class="qr-img" id="qr-image" src="data:image/png;base64,{{qr_b64}}" alt="QR код" loading="eager" onclick="shareQR()">
+<div class="qr-tap">Для оплати через додаток банку (Android):</div>
+<div class="hint-steps" style="text-align:left;margin-top:10px">
+<div class="hint-step"><span class="hint-step-num">1</span><span>Натисніть на QR-код, щоб поділитися з додатком банку</span></div>
+<div class="hint-step"><span class="hint-step-num">2</span><span>Оберіть додаток вашого банку у вікні</span></div>
+<div class="hint-step"><span class="hint-step-num">3</span><span>Підтвердьте платіж у додатку банку</span></div>
+</div>
+</div>
+</div>"""
+
+    # LiqPay блок
+    liqpay_block = ""
+    lp = next((p for p in (providers or []) if p.get("provider_type") == "liqpay"), None)
+    if lp:
+        amt_raw = amount_line.replace(" грн", "").replace("за домовленістю", "").strip()
+        liqpay_block = liqpay_block_html(link_id, lp, amt_raw, liqpay_paid)
+
+    # Реквізити блок
+    requisites_block = f"""<div class="section">
+<div class="sec-label">Реквізити для переказу</div>
+{{reqs}}
+<button class="copy-all" onclick="copyAll(this)">Скопіювати всі реквізити</button>
+</div>"""
+
+    block_map = {
+        "nbu_qr": nbu_qr_block,
+        "liqpay": liqpay_block,
+        "requisites": requisites_block,
+    }
+    blocks_html = "\n".join(block_map.get(b, "") for b in block_order)
+
+    return f"""<!DOCTYPE html>
+<html lang="uk"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{pt} — Результат оплати</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+body{{font-family:'Inter',sans-serif;background:{bg};display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;margin:0}}
+.card{{background:{cc_color};border-radius:16px;padding:40px 32px;max-width:400px;width:100%;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.06);border:1px solid {bc}}}
+.icon{{font-size:56px;margin-bottom:16px}}
+h2{{font-size:22px;font-weight:700;color:{color};margin-bottom:10px;margin:0}}
+p{{font-size:14px;color:#667085;line-height:1.5;margin-top:8px}}
+</style></head><body>
+<div class="card">{logo}<div class="icon">{icon}</div>
+<h2>{title}</h2><p>{desc}</p></div></body></html>"""

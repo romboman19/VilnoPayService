@@ -85,6 +85,7 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div class="tab" data-t="log">Лог посилань</div>
 <div class="tab" data-t="views">Перегляди</div>
 <div class="tab" data-t="mgrs">Менеджери</div>
+<div class="tab" data-t="prov">Провайдери</div>
 </div>
 
 <div class="panel active" id="p-rcv">
@@ -161,6 +162,10 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div class="fg"><label>Футер</label><input id="s-footer_text"></div>
 <div class="fg"><label>TTL посилань (год)</label><input id="s-link_ttl_hours" type="number" min="1" max="720"></div>
 <div class="fg"><label>CSS</label><textarea id="s-custom_css" rows="3"></textarea></div>
+<input type="hidden" id="s-block_order" value='["nbu_qr","liqpay","requisites"]'>
+<div class="fg"><label>Порядок блокiв на сторiнцi оплати</label>
+<div id="block-order-editor" style="display:flex;flex-direction:column;gap:6px"></div>
+<div style="font-size:11px;color:var(--muted);margin-top:4px">Перетягнiть або використовуйте стрiлки для змiни порядку</div></div>
 <button class="btn btn-blue mt" onclick="saveBrand()">Зберегти</button>
 <button class="btn btn-outline mt" style="margin-left:8px" onclick="previewBrand()">Попередній перегляд →</button>
 </div>
@@ -244,7 +249,7 @@ E('tabs').addEventListener('click',e=>{
   t.classList.add('active');E('p-'+t.dataset.t).classList.add('active');
 });
 
-function loadAll(){loadRcv();loadBrand();loadKeys();loadLog();loadViews();loadManagers();}
+function loadAll(){loadRcv();loadBrand();loadKeys();loadLog();loadViews();loadManagers();loadProviders();loadLiqpayTx();}
 
 // LOGO UPLOAD
 E('logo-file').addEventListener('change',async function(){
@@ -388,16 +393,16 @@ async function createManager(){
     if(r.api_key){
       alert('API ключ менеджера (збережіть!):\n\n'+r.api_key);
     }
-    E('mgr-user').value='';E('mgr-pass').value='';loadManagers();
+    E('mgr-user').value='';E('mgr-pass').value='';loadManagers();loadProviders();loadLiqpayTx();
   }
   catch(e){toast('Помилка: '+e.message);}
 }
 async function delManager(id){
   if(!confirm('Видалити менеджера?'))return;
-  try{await api('DELETE','/admin/managers/'+id);toast('Видалено');loadManagers();}catch(e){toast('Помилка: '+e.message);}
+  try{await api('DELETE','/admin/managers/'+id);toast('Видалено');loadManagers();loadProviders();loadLiqpayTx();}catch(e){toast('Помилка: '+e.message);}
 }
 async function toggleManager(id,active){
-  try{await api('PUT','/admin/managers/'+id+'/toggle',{is_active:active});toast(active?'Увімкнено':'Вимкнено');loadManagers();}catch(e){toast('Помилка: '+e.message);}
+  try{await api('PUT','/admin/managers/'+id+'/toggle',{is_active:active});toast(active?'Увімкнено':'Вимкнено');loadManagers();loadProviders();loadLiqpayTx();}catch(e){toast('Помилка: '+e.message);}
 }
 
 
@@ -412,6 +417,90 @@ async function toggleManager(id,active){
     showDash(me.username);
   }catch(e){showLogin();}
 })();
+// PROVIDERS
+async function loadProviders(){
+  try{
+    const rows=await api('GET','/admin/providers');
+    const el=E('prov-tbl');
+    if(!rows||!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає провайдерiв</p>';return;}
+    let h='<div class="resp-table"><table><thead><tr><th>Тип</th><th>Назва</th><th>Public Key</th><th>Режим</th><th>Статус</th><th></th></tr></thead><tbody>';
+    for(const r of rows){
+      const b=r.is_active?'<span class="badge badge-g">Активний</span>':'<span class="badge badge-r">Вимкнено</span>';
+      const sb=r.is_sandbox?'<span class="badge" style="background:#FFF7ED;color:#C2410C">Sandbox</span>':'';
+      h+=`<tr><td>${esc(r.provider_type)}</td><td>${esc(r.name)}</td><td class="mono">${esc((r.public_key||'').substring(0,20))}...</td><td>${esc(r.display_mode)}</td><td>${b} ${sb}</td><td><button class="btn btn-outline btn-sm" onclick="editProv(${r.id})">✏️</button> <button class="btn btn-outline btn-sm" onclick="toggleProv(${r.id},${!r.is_active})">${r.is_active?'Вимкнути':'Увiмкнути'}</button> <button class="btn btn-red btn-sm" onclick="delProv(${r.id})">🗑</button></td></tr>`;
+    }
+    el.innerHTML=h+'</tbody></table></div>';
+  }catch(e){toast('Помилка: '+e.message);}
+}
+function showProvForm(){E('prov-form').style.display='block';E('prov-form-t').textContent='Новий провайдер';E('prov-eid').value='';E('prov-type').value='liqpay';E('prov-name').value='';E('prov-pub').value='';E('prov-priv').value='';E('prov-mode').value='widget';E('prov-methods').value='["card","privat24","wallet"]';E('prov-sandbox').checked=false;E('prov-err').textContent='';}
+function hideProvForm(){E('prov-form').style.display='none';}
+async function saveProv(){
+  const eid=E('prov-eid').value;
+  const body={provider_type:E('prov-type').value,name:E('prov-name').value.trim(),public_key:E('prov-pub').value.trim(),private_key:E('prov-priv').value.trim(),display_mode:E('prov-mode').value,pay_methods:E('prov-methods').value.trim(),is_sandbox:E('prov-sandbox').checked};
+  try{
+    E('prov-err').textContent='';
+    if(eid){if(!body.private_key)delete body.private_key;await api('PUT','/admin/providers/'+eid,body);toast('Оновлено');}
+    else{if(!body.private_key){E('prov-err').textContent="Private key обов'язковий";return;}await api('POST','/admin/providers',body);toast('Створено');}
+    hideProvForm();loadProviders();
+  }catch(e){E('prov-err').textContent=e.message;}
+}
+async function editProv(id){
+  const rows=await api('GET','/admin/providers');
+  const r=rows.find(x=>x.id===id);if(!r)return;
+  E('prov-form').style.display='block';E('prov-form-t').textContent='Редагувати: '+r.name;E('prov-eid').value=id;
+  E('prov-type').value=r.provider_type;E('prov-name').value=r.name;E('prov-pub').value=r.public_key;E('prov-priv').value='';
+  E('prov-mode').value=r.display_mode;E('prov-methods').value=r.pay_methods||'[]';E('prov-sandbox').checked=r.is_sandbox;
+}
+async function toggleProv(id,active){try{await api('PUT','/admin/providers/'+id,{is_active:active});toast(active?'Увiмкнено':'Вимкнено');loadProviders();}catch(e){toast('Помилка: '+e.message);}}
+async function delProv(id){if(!confirm('Видалити провайдера?'))return;try{await api('DELETE','/admin/providers/'+id);toast('Видалено');loadProviders();}catch(e){toast('Помилка: '+e.message);}}
+async function loadLiqpayTx(){
+  try{
+    const rows=await api('GET','/admin/liqpay-transactions');
+    const el=E('liqpay-tx-tbl');
+    if(!rows||!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає транзакцiй</p>';return;}
+    let h='<div class="resp-table"><table><thead><tr><th>Order ID</th><th>Link ID</th><th>Статус</th><th>Сума</th><th>Картка</th><th>Час</th></tr></thead><tbody>';
+    for(const r of rows){
+      const sc=r.status==='success'?'badge-g':(r.status==='failure'?'badge-r':'');
+      h+=`<tr><td class="mono">${esc(r.order_id)}</td><td class="mono">${esc(r.link_id)}</td><td><span class="badge ${sc}">${esc(r.status||'pending')}</span></td><td>${r.amount||'—'} ${esc(r.currency||'')}</td><td class="mono">${esc(r.sender_card||'—')}</td><td>${fmtKiev(r.created_at)}</td></tr>`;
+    }
+    el.innerHTML=h+'</tbody></table></div>';
+  }catch(e){}
+}
+function renderBlockOrder(order){
+  const labels={'nbu_qr':'🏦 QR НБУ + кнопка банку','liqpay':'💳 LiqPay','requisites':'📋 Реквізити'};
+  const el=E('block-order-editor');el.innerHTML='';
+  order.forEach((b,i)=>{
+    const d=document.createElement('div');
+    d.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card)';
+    d.innerHTML=`<span style="color:var(--muted)">${i+1}.</span> ${labels[b]||b}<span style="margin-left:auto;cursor:pointer;color:var(--muted)" onclick="moveBlock('${b}',-1)">↑</span><span style="cursor:pointer;color:var(--muted)" onclick="moveBlock('${b}',1)">↓</span>`;
+    el.appendChild(d);
+  });
+}
+function moveBlock(name,dir){let order=getBlockOrder();const i=order.indexOf(name);if(i<0)return;const ni=i+dir;if(ni<0||ni>=order.length)return;[order[i],order[ni]]=[order[ni],order[i]];E('s-block_order').value=JSON.stringify(order);renderBlockOrder(order);}
+function getBlockOrder(){try{return JSON.parse(E('s-block_order').value);}catch(e){return ["nbu_qr","liqpay","requisites"];}}
+
 </script>
 </body>
-</html>
+</html
+<div class="panel" id="p-prov" style="display:none">
+<div class="card">
+<h2>Платiжнi провайдери</h2>
+<div id="prov-tbl"></div>
+<button class="btn btn-blue mt" onclick="showProvForm()">+ Додати провайдера</button>
+</div>
+<div class="card" id="prov-form" style="display:none">
+<h2 id="prov-form-t">Новий провайдер</h2>
+<input type="hidden" id="prov-eid">
+<div class="fg"><label>Тип</label><select id="prov-type"><option value="liqpay">LiqPay</option></select></div>
+<div class="fg"><label>Назва</label><input id="prov-name" placeholder="LiqPay основний"></div>
+<div class="fg"><label>Public Key</label><input id="prov-pub" placeholder="i00000000000" class="mono"></div>
+<div class="fg"><label>Private Key</label><input id="prov-priv" type="password" placeholder="xxxxxxxxxxxxxxxx" class="mono"><div style="font-size:11px;color:var(--muted);margin-top:4px">Зберiгається зашифрованим. При редагуваннi — залиште порожнiм щоб не змiнювати.</div></div>
+<div class="fg"><label>Режим вiдображення</label><select id="prov-mode"><option value="widget">Вiджет (вбудований)</option><option value="button">Кнопка (нове вiкно)</option><option value="redirect">Redirect (POST-форма)</option></select></div>
+<div class="fg"><label>Методи оплати (JSON array)</label><input id="prov-methods" value='["card","privat24","wallet"]' class="mono"></div>
+<div class="fg"><label><input type="checkbox" id="prov-sandbox"> Sandbox (тестовий режим)</label></div>
+<div class="err" id="prov-err"></div>
+<div class="flex mt"><button class="btn btn-green" onclick="saveProv()">Зберегти</button><button class="btn btn-outline" onclick="hideProvForm()">Скасувати</button></div>
+</div>
+<div class="card"><h2>Транзакцiї LiqPay</h2><div id="liqpay-tx-tbl"></div></div>
+</div>
+>

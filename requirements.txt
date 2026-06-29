@@ -8,3 +8,4 @@ slowapi==0.1.9
 markupsafe==3.0.2
 psycopg2-binary==2.9.10
 bcrypt==4.2.1
+cryptography>=42.0

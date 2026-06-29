@@ -1,7 +1,7 @@
 """
 VilnoPayService v4.0.0 — Admin Panel + Receiver Keys
 """
-import base64, io, json, logging, os, re, secrets, time
+import base64, hashlib, io, json, logging, os, re, secrets, time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -28,9 +28,13 @@ from db import (
     log_payment_link, log_page_view, list_page_views, list_page_views_for_link,
     cleanup_expired_sessions,
     create_manager, list_managers, delete_manager, toggle_manager,
-    create_template, list_templates, delete_template
+    create_template, list_templates, delete_template,
+    # Payment providers
+    create_provider, get_provider_by_type, get_active_providers, list_providers,
+    update_provider, delete_provider, get_provider_decrypted,
+    create_liqpay_tx, update_liqpay_tx, get_liqpay_tx_by_link, list_liqpay_transactions
 )
-from templates import pay_page_html, expired_page_html
+from templates import pay_page_html, expired_page_html, liqpay_result_html
 
 # ── Config ───────────────────────────────────────────────────
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
@@ -345,7 +349,7 @@ def admin_update_settings(request: Request, body: SettingsUpdate):
     _require_role(request, "admin")
     allowed = {"logo_filename","bg_color","primary_color","accent_color",
                "text_color","card_color","border_color","font_family","font_size",
-               "page_title","page_subtitle","footer_text","link_ttl_hours","custom_css"}
+               "page_title","page_subtitle","footer_text","link_ttl_hours","custom_css","block_order"}
     filtered = {k: v for k, v in body.settings.items() if k in allowed}
     if "custom_css" in filtered:
         css = filtered["custom_css"]
@@ -355,6 +359,15 @@ def admin_update_settings(request: Request, body: SettingsUpdate):
         if any(f in css.lower() for f in forbidden):
             raise HTTPException(400, "custom_css: заборонені конструкції")
     update_settings(filtered)
+        # Валідація block_order
+    if "block_order" in filtered:
+        try:
+            order = json.loads(filtered["block_order"])
+            valid_blocks = {"nbu_qr", "liqpay", "requisites"}
+            if not isinstance(order, list) or not all(b in valid_blocks for b in order):
+                raise HTTPException(400, "block_order: невірний формат")
+        except (json.JSONDecodeError, TypeError):
+            raise HTTPException(400, "block_order: невалідний JSON")
     logger.info("SETTINGS_UPDATED keys=%s", list(filtered.keys()))
     return {"ok": True}
 
@@ -676,6 +689,193 @@ def admin_cleanup_invoices(request: Request):
     return {"deleted": deleted}
 
 
+
+# ── LiqPay Helpers ────────────────────────────────────────────
+
+def liqpay_encode_data(params: dict) -> str:
+    """base64(JSON) для LiqPay API v3."""
+    return base64.b64encode(json.dumps(params, ensure_ascii=False).encode()).decode()
+
+
+def liqpay_signature(private_key: str, data: str) -> str:
+    """signature = base64(sha1(private_key + data + private_key)).
+    LiqPay v3 використовує SHA-1."""
+    sign_str = private_key + data + private_key
+    return base64.b64encode(hashlib.sha1(sign_str.encode()).digest()).decode()
+
+
+def liqpay_verify_callback(private_key: str, data: str, signature: str) -> bool:
+    return liqpay_signature(private_key, data, signature) == signature
+
+
+# ── Public LiqPay Endpoints ───────────────────────────────────
+
+@app.get("/liqpay/checkout-data/{link_id}")
+@limiter.limit("30/minute")
+def liqpay_checkout_data(request: Request, link_id: str):
+    """Генерація data + signature для LiqPay віджета/кнопки."""
+    link_id = _validate_link_id(link_id)
+    raw = rdb.get(f"pay:{link_id}")
+    if not raw:
+        raise HTTPException(410, "Посилання неактивне")
+    pay_data = json.loads(raw)
+    amount = pay_data.get("amount")
+    if not amount:
+        raise HTTPException(400, "Сума не вказана — LiqPay потребує суму")
+    providers = get_active_providers()
+    lp = next((p for p in providers if p["provider_type"] == "liqpay"), None)
+    if not lp:
+        raise HTTPException(404, "LiqPay не налаштований")
+    provider_full = get_provider_decrypted(lp["id"])
+    if not provider_full or not provider_full.get("private_key"):
+        raise HTTPException(500, "Ключі LiqPay не налаштовані")
+    order_id = f"vp_{link_id}_{secrets.token_urlsafe(6)}"
+    create_liqpay_tx(link_id, order_id, lp["id"])
+    lp_params = {
+        "version": 3,
+        "public_key": lp["public_key"],
+        "action": "pay",
+        "amount": float(amount),
+        "currency": "UAH",
+        "description": pay_data.get("purpose", "Оплата"),
+        "order_id": order_id,
+        "language": "uk",
+        "server_url": f"{BASE_URL}/liqpay/callback",
+        "result_url": f"{BASE_URL}/liqpay/result/{link_id}",
+    }
+    if lp.get("is_sandbox"):
+        lp_params["sandbox"] = 1
+    try:
+        methods = json.loads(lp.get("pay_methods", "[]"))
+        if methods:
+            lp_params["paytypes"] = ",".join(methods)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    data_b64 = liqpay_encode_data(lp_params)
+    signature = liqpay_signature(provider_full["private_key"], data_b64)
+    logger.info("LIQPAY_CHECKOUT link=%s order=%s amount=%s", link_id, order_id, amount)
+    return {
+        "data": data_b64,
+        "signature": signature,
+        "public_key": lp["public_key"],
+        "display_mode": lp["display_mode"],
+        "is_sandbox": lp.get("is_sandbox", False)
+    }
+
+
+@app.post("/liqpay/callback")
+async def liqpay_callback(request: Request):
+    """Server-to-server callback від LiqPay."""
+    form = await request.form()
+    data = form.get("data", "")
+    signature = form.get("signature", "")
+    if not data or not signature:
+        logger.warning("LIQPAY_CALLBACK empty data/signature ip=%s", get_remote_address(request))
+        raise HTTPException(400, "Missing data or signature")
+    try:
+        decoded = json.loads(base64.b64decode(data).decode())
+    except Exception:
+        raise HTTPException(400, "Invalid data")
+    order_id = decoded.get("order_id", "")
+    if not order_id:
+        raise HTTPException(400, "Missing order_id")
+    tx = pg_query("SELECT provider_id FROM liqpay_transactions WHERE order_id=%s",
+                  (order_id,), fetchone=True)
+    if not tx:
+        logger.warning("LIQPAY_CALLBACK unknown order=%s", order_id)
+        raise HTTPException(404, "Unknown order_id")
+    provider = get_provider_decrypted(tx["provider_id"])
+    if not provider:
+        raise HTTPException(500, "Provider error")
+    if not liqpay_verify_callback(provider["private_key"], data, signature):
+        logger.warning("LIQPAY_CALLBACK invalid signature order=%s ip=%s",
+                       order_id, get_remote_address(request))
+        raise HTTPException(403, "Invalid signature")
+    status = decoded.get("status", "unknown")
+    update_liqpay_tx(
+        order_id,
+        status=status,
+        liqpay_order_id=decoded.get("liqpay_order_id"),
+        amount=decoded.get("amount"),
+        currency=decoded.get("currency", "UAH"),
+        sender_card=decoded.get("sender_card_mask2", ""),
+        transaction_id=decoded.get("transaction_id"),
+        callback_data=json.dumps(decoded),
+        callback_ip=get_remote_address(request)
+    )
+    logger.info("LIQPAY_CALLBACK order=%s status=%s amount=%s ip=%s",
+                order_id, status, decoded.get("amount"), get_remote_address(request))
+    if status in ("success", "sandbox"):
+        link_id_part = order_id.split("_")[1] if "_" in order_id else ""
+        if link_id_part:
+            rdb.setex(f"liqpay_paid:{link_id_part}", 86400,
+                      json.dumps({"status": status, "amount": decoded.get("amount")}))
+    return {"ok": True}
+
+
+@app.get("/liqpay/result/{link_id}", response_class=HTMLResponse)
+@limiter.limit("30/minute")
+def liqpay_result(request: Request, link_id: str):
+    """Сторінка результату після повернення з LiqPay."""
+    link_id = _validate_link_id(link_id)
+    tx = get_liqpay_tx_by_link(link_id)
+    settings = get_settings()
+    logo_fn = settings.get("logo_filename", "")
+    logo_url = f"/static/{logo_fn}" if logo_fn else ""
+    return HTMLResponse(liqpay_result_html(tx, settings, logo_url))
+
+
+# ── Admin: Payment Providers ────────────────────────────────
+
+@app.get("/admin/providers")
+def admin_list_providers(request: Request):
+    _require_role(request, "admin")
+    return list_providers()
+
+
+@app.post("/admin/providers")
+def admin_create_provider(request: Request, body: dict):
+    _require_role(request, "admin")
+    required = ["provider_type", "name", "public_key", "private_key"]
+    for f in required:
+        if not body.get(f, "").strip():
+            raise HTTPException(400, f"Поле {f} обов'язкове")
+    prov = create_provider(
+        provider_type=body["provider_type"].strip(),
+        name=body["name"].strip(),
+        public_key=body["public_key"].strip(),
+        private_key=body["private_key"].strip(),
+        display_mode=body.get("display_mode", "widget"),
+        pay_methods=body.get("pay_methods", '["card","privat24","wallet"]'),
+        is_sandbox=body.get("is_sandbox", False),
+        extra_config=body.get("extra_config", "{}")
+    )
+    logger.info("PROVIDER_CREATED type=%s name=%s", body["provider_type"], body["name"])
+    return prov or {"ok": True}
+
+
+@app.put("/admin/providers/{provider_id}")
+def admin_update_provider(request: Request, provider_id: int, body: dict):
+    _require_role(request, "admin")
+    update_provider(provider_id, **body)
+    logger.info("PROVIDER_UPDATED id=%s", provider_id)
+    return {"ok": True}
+
+
+@app.delete("/admin/providers/{provider_id}")
+def admin_delete_provider(request: Request, provider_id: int):
+    _require_role(request, "admin")
+    delete_provider(provider_id)
+    logger.info("PROVIDER_DELETED id=%s", provider_id)
+    return {"ok": True}
+
+
+@app.get("/admin/liqpay-transactions")
+def admin_liqpay_transactions(request: Request, limit: int = 100):
+    _require_role(request, "admin")
+    return list_liqpay_transactions(limit)
+
+
 # ── Admin HTML Page ──────────────────────────────────────────
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -877,8 +1077,23 @@ def pay_page(request: Request, link_id: str):
     logo_url = f"/static/{logo_fn}" if logo_fn else ""
     logger.info("LOGO_CHECK fn=%s url=%s file_exists=%s", logo_fn, logo_url, (static_dir / logo_fn).exists() if logo_fn else False)
 
+    # Отримати активних провайдерів і block_order
+    active_providers = get_active_providers()
+    block_order_raw = settings.get("block_order", '["nbu_qr","liqpay","requisites"]')
+    try:
+        block_order = json.loads(block_order_raw)
+    except (json.JSONDecodeError, TypeError):
+        block_order = ["nbu_qr", "liqpay", "requisites"]
+
+    # Перевірити чи вже оплачено через LiqPay
+    liqpay_paid_raw = rdb.get(f"liqpay_paid:{link_id}")
+    liqpay_paid = json.loads(liqpay_paid_raw) if liqpay_paid_raw else None
+
     return HTMLResponse(content=pay_page_html(
         nbu_url, data["receiver"], data["iban"], data["purpose"],
         amt_line, qr_b64, hours_left, settings, logo_url, link_id, data.get("code", ""), ttl_seconds,
-        data.get("invoice_url") or (f"{BASE_URL}/invoice/{link_id}" if data.get("invoice_id") else None)
+        data.get("invoice_url") or (f"{BASE_URL}/invoice/{link_id}" if data.get("invoice_id") else None),
+        providers=active_providers,
+        block_order=block_order,
+        liqpay_paid=liqpay_paid
     ))

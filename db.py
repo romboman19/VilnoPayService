@@ -122,6 +122,45 @@ def _migrate():
             created_at      TIMESTAMPTZ DEFAULT NOW()
         )""",
         "CREATE INDEX IF NOT EXISTS idx_templates_manager ON payment_templates(manager_id)",
+        # Payment providers
+        """CREATE TABLE IF NOT EXISTS payment_providers (
+            id              SERIAL PRIMARY KEY,
+            provider_type   VARCHAR(50) NOT NULL,
+            name            VARCHAR(200) NOT NULL,
+            is_active       BOOLEAN DEFAULT FALSE,
+            public_key      TEXT NOT NULL DEFAULT '',
+            private_key_enc TEXT NOT NULL DEFAULT '',
+            display_mode    VARCHAR(30) NOT NULL DEFAULT 'widget',
+            pay_methods     TEXT DEFAULT '["card","privat24","wallet"]',
+            is_sandbox      BOOLEAN DEFAULT FALSE,
+            extra_config    TEXT DEFAULT '{}',
+            created_at      TIMESTAMPTZ DEFAULT NOW(),
+            updated_at      TIMESTAMPTZ DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_providers_type ON payment_providers(provider_type)",
+        "CREATE INDEX IF NOT EXISTS idx_providers_active ON payment_providers(is_active)",
+        # LiqPay transactions
+        """CREATE TABLE IF NOT EXISTS liqpay_transactions (
+            id              SERIAL PRIMARY KEY,
+            link_id         VARCHAR(32) NOT NULL,
+            order_id        VARCHAR(100) NOT NULL UNIQUE,
+            provider_id     INTEGER REFERENCES payment_providers(id),
+            liqpay_order_id VARCHAR(100),
+            status          VARCHAR(30),
+            amount          NUMERIC(12,2),
+            currency        VARCHAR(5) DEFAULT 'UAH',
+            sender_card     VARCHAR(20),
+            transaction_id  BIGINT,
+            callback_data   TEXT,
+            callback_ip     VARCHAR(45),
+            created_at      TIMESTAMPTZ DEFAULT NOW(),
+            updated_at      TIMESTAMPTZ DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_liqpay_tx_link ON liqpay_transactions(link_id)",
+        "CREATE INDEX IF NOT EXISTS idx_liqpay_tx_order ON liqpay_transactions(order_id)",
+        "CREATE INDEX IF NOT EXISTS idx_liqpay_tx_status ON liqpay_transactions(status)",
+        # block_order setting
+        "INSERT INTO settings (key, value) VALUES ('block_order', '[\"nbu_qr\",\"liqpay\",\"requisites\"]') ON CONFLICT (key) DO NOTHING",
     ]
     for sql in migrations:
         try:
@@ -408,3 +447,143 @@ def get_manager_api_key_record(manager_username):
 
 
 
+
+
+# ── Payment Providers (LiqPay) ──────────────────────────────
+
+PROVIDER_ENCRYPTION_KEY = os.getenv("PROVIDER_ENCRYPTION_KEY", "")
+
+
+def _get_fernet():
+    if not PROVIDER_ENCRYPTION_KEY:
+        raise ValueError("PROVIDER_ENCRYPTION_KEY не налаштований")
+    from cryptography.fernet import Fernet
+    return Fernet(PROVIDER_ENCRYPTION_KEY.encode())
+
+
+def encrypt_private_key(plain_key: str) -> str:
+    if not plain_key:
+        return ""
+    return _get_fernet().encrypt(plain_key.encode()).decode()
+
+
+def decrypt_private_key(encrypted_key: str) -> str:
+    if not encrypted_key:
+        return ""
+    return _get_fernet().decrypt(encrypted_key.encode()).decode()
+
+
+def create_provider(provider_type, name, public_key, private_key,
+                    display_mode="widget",
+                    pay_methods='["card","privat24","wallet"]',
+                    is_sandbox=False, extra_config="{}"):
+    enc = encrypt_private_key(private_key)
+    pg_execute(
+        """INSERT INTO payment_providers
+           (provider_type,name,public_key,private_key_enc,display_mode,
+            pay_methods,is_sandbox,extra_config)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+        (provider_type, name, public_key, enc, display_mode,
+         pay_methods, is_sandbox, extra_config))
+    return get_provider_by_type(provider_type)
+
+
+def get_provider_by_type(provider_type):
+    row = pg_query(
+        """SELECT id,provider_type,name,is_active,public_key,display_mode,
+           pay_methods,is_sandbox,extra_config FROM payment_providers
+           WHERE provider_type=%s ORDER BY created_at DESC LIMIT 1""",
+        (provider_type,), fetchone=True)
+    if row:
+        for k in ("created_at", "updated_at"):
+            if row.get(k): row[k] = str(row[k])
+    return row
+
+
+def get_active_providers():
+    rows = pg_query(
+        """SELECT id,provider_type,name,public_key,display_mode,
+           pay_methods,is_sandbox,extra_config
+           FROM payment_providers WHERE is_active=TRUE ORDER BY id""",
+        fetchall=True) or []
+    return rows
+
+
+def list_providers():
+    rows = pg_query(
+        """SELECT id,provider_type,name,is_active,public_key,display_mode,
+           pay_methods,is_sandbox,extra_config,created_at,updated_at
+           FROM payment_providers ORDER BY created_at DESC""",
+        fetchall=True) or []
+    for r in rows:
+        for k in ("created_at", "updated_at"):
+            if r.get(k): r[k] = str(r[k])
+    return rows
+
+
+def update_provider(provider_id, **kwargs):
+    allowed = {"name", "is_active", "public_key", "display_mode",
+               "pay_methods", "is_sandbox", "extra_config"}
+    updates = {k: v for k, v in kwargs.items() if k in allowed}
+    if "private_key" in kwargs and kwargs["private_key"]:
+        updates["private_key_enc"] = encrypt_private_key(kwargs["private_key"])
+    if not updates:
+        return
+    sets = ", ".join(f"{k}=%s" for k in updates)
+    vals = list(updates.values()) + [provider_id]
+    pg_execute(f"UPDATE payment_providers SET {sets} WHERE id=%s", vals)
+
+
+def delete_provider(pid):
+    pg_execute("DELETE FROM payment_providers WHERE id=%s", (pid,))
+
+
+def get_provider_decrypted(provider_id):
+    row = pg_query(
+        "SELECT * FROM payment_providers WHERE id=%s AND is_active=TRUE",
+        (provider_id,), fetchone=True)
+    if row and row.get("private_key_enc"):
+        row["private_key"] = decrypt_private_key(row["private_key_enc"])
+    if row:
+        for k in ("created_at", "updated_at"):
+            if row.get(k): row[k] = str(row[k])
+    return row
+
+
+# ── LiqPay Transactions ─────────────────────────────────────
+
+def create_liqpay_tx(link_id, order_id, provider_id):
+    pg_execute(
+        "INSERT INTO liqpay_transactions (link_id,order_id,provider_id) VALUES (%s,%s,%s)",
+        (link_id, order_id, provider_id))
+
+
+def update_liqpay_tx(order_id, **kwargs):
+    allowed = {"status", "liqpay_order_id", "amount", "currency",
+               "sender_card", "transaction_id", "callback_data", "callback_ip"}
+    updates = {k: v for k, v in kwargs.items() if k in allowed}
+    if not updates:
+        return
+    sets = ", ".join(f"{k}=%s" for k in updates)
+    vals = list(updates.values()) + [order_id]
+    pg_execute(f"UPDATE liqpay_transactions SET {sets} WHERE order_id=%s", vals)
+
+
+def get_liqpay_tx_by_link(link_id):
+    row = pg_query(
+        "SELECT * FROM liqpay_transactions WHERE link_id=%s ORDER BY created_at DESC LIMIT 1",
+        (link_id,), fetchone=True)
+    if row:
+        for k in ("created_at", "updated_at"):
+            if row.get(k): row[k] = str(row[k])
+    return row
+
+
+def list_liqpay_transactions(limit=100):
+    rows = pg_query(
+        "SELECT * FROM liqpay_transactions ORDER BY created_at DESC LIMIT %s",
+        (min(limit, 500),), fetchall=True) or []
+    for r in rows:
+        for k in ("created_at", "updated_at"):
+            if r.get(k): r[k] = str(r[k])
+    return rows

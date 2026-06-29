@@ -147,3 +147,57 @@ CREATE TABLE IF NOT EXISTS payment_templates (
 );
 CREATE INDEX idx_templates_manager ON payment_templates(manager_id);
 
+
+-- ── Платіжні провайдери (LiqPay, майбутні: MonoPay, Fondy) ──
+CREATE TABLE IF NOT EXISTS payment_providers (
+    id              SERIAL PRIMARY KEY,
+    provider_type   VARCHAR(50) NOT NULL,         -- 'liqpay'
+    name            VARCHAR(200) NOT NULL,         -- "LiqPay основний"
+    is_active       BOOLEAN DEFAULT FALSE,
+    public_key      TEXT NOT NULL DEFAULT '',
+    private_key_enc TEXT NOT NULL DEFAULT '',       -- Fernet encrypted
+    display_mode    VARCHAR(30) NOT NULL DEFAULT 'widget',
+                    -- 'widget' | 'button' | 'redirect'
+    pay_methods     TEXT DEFAULT '["card","privat24","wallet"]',
+    is_sandbox      BOOLEAN DEFAULT FALSE,
+    extra_config    TEXT DEFAULT '{}',
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_providers_type ON payment_providers(provider_type);
+CREATE INDEX IF NOT EXISTS idx_providers_active ON payment_providers(is_active);
+
+-- ── Транзакції LiqPay ───────────────────────────────────────
+CREATE TABLE IF NOT EXISTS liqpay_transactions (
+    id              SERIAL PRIMARY KEY,
+    link_id         VARCHAR(32) NOT NULL,
+    order_id        VARCHAR(100) NOT NULL UNIQUE,
+    provider_id     INTEGER REFERENCES payment_providers(id),
+    liqpay_order_id VARCHAR(100),
+    status          VARCHAR(30),
+    amount          NUMERIC(12,2),
+    currency        VARCHAR(5) DEFAULT 'UAH',
+    sender_card     VARCHAR(20),
+    transaction_id  BIGINT,
+    callback_data   TEXT,
+    callback_ip     VARCHAR(45),
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_liqpay_tx_link ON liqpay_transactions(link_id);
+CREATE INDEX IF NOT EXISTS idx_liqpay_tx_order ON liqpay_transactions(order_id);
+CREATE INDEX IF NOT EXISTS idx_liqpay_tx_status ON liqpay_transactions(status);
+
+-- Тригери для нових таблиць
+CREATE TRIGGER trg_payment_providers_updated
+    BEFORE UPDATE ON payment_providers
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_liqpay_tx_updated
+    BEFORE UPDATE ON liqpay_transactions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- Нова setting: порядок блоків
+INSERT INTO settings (key, value) VALUES
+    ('block_order', '["nbu_qr","liqpay","requisites"]')
+ON CONFLICT (key) DO NOTHING;
