@@ -425,6 +425,34 @@ fetch('/liqpay/checkout-data/{lid}')
 </script>
 </div>'''
 
+    elif mode in ("gpay", "apay"):
+        btn_label = "Оплатити Google Pay" if mode == "gpay" else "Оплатити Apple Pay"
+        btn_color = "#3C4043" if mode == "gpay" else "#000000"
+        return f"""<div class="section" id="liqpay-section">
+<div class="sec-label">{btn_label}</div>
+<button class="pay-btn" id="liqpay-pay-btn" onclick="liqpayPaySpecial()" style="background:{btn_color}">
+{btn_label}
+</button>
+<script>
+function liqpayPaySpecial(){{
+  var btn=document.getElementById('liqpay-pay-btn');
+  btn.disabled=true; btn.textContent='Завантаження...';
+  fetch('/liqpay/checkout-data/{lid}')
+    .then(r=>r.json())
+    .then(d=>{{
+      if(!d.data||!d.signature)throw new Error('no data');
+      var f=document.createElement('form');
+      f.method='POST'; f.action='https://www.liqpay.ua/api/3/checkout'; f.target='_blank';
+      var i1=document.createElement('input'); i1.type='hidden'; i1.name='data'; i1.value=d.data;
+      var i2=document.createElement('input'); i2.type='hidden'; i2.name='signature'; i2.value=d.signature;
+      f.appendChild(i1); f.appendChild(i2); document.body.appendChild(f); f.submit();
+      btn.disabled=false; btn.textContent='{btn_label}';
+    }})
+    .catch(()=>{{ btn.disabled=false; btn.textContent='{btn_label}'; }});
+}}
+</script>
+</div>"""
+
     return ""
 
 

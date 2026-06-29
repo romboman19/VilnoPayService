@@ -774,12 +774,17 @@ def liqpay_checkout_data(request: Request, link_id: str):
     }
     if lp.get("liqpay_sandbox"):
         lp_params["sandbox"] = 1
-    try:
-        methods = json.loads(lp.get("liqpay_pay_methods", "[]"))
-        if methods:
-            lp_params["paytypes"] = ",".join(methods)
-    except (json.JSONDecodeError, TypeError):
-        pass
+    # Для gpay/apay режиму — примусово paytypes
+    display_mode = lp.get("liqpay_display_mode", "widget")
+    if display_mode in ("gpay", "apay"):
+        lp_params["paytypes"] = display_mode
+    else:
+        try:
+            methods = json.loads(lp.get("liqpay_pay_methods", "[]"))
+            if methods:
+                lp_params["paytypes"] = ",".join(methods)
+        except (json.JSONDecodeError, TypeError):
+            pass
     data_b64 = liqpay_encode_data(lp_params)
     signature = liqpay_signature(private_key, data_b64)
     logger.info("LIQPAY_CHECKOUT link=%s order=%s amount=%s", link_id, order_id, amount)
