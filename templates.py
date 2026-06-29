@@ -375,36 +375,10 @@ def liqpay_block_html(link_id, provider, amount_raw, liqpay_paid=None):
 </script>
 </div>'''
 
-    elif mode == "button":
-        return f'''<div class="section" id="liqpay-section">
-<div class="sec-label">\U0001F4B3 Оплата карткою</div>
-<button class="pay-btn" id="liqpay-pay-btn" onclick="liqpayPay()" style="background:#7ab72b">
-<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-Оплатити через LiqPay
-</button>
-<script>
-function liqpayPay(){{
-  var btn=document.getElementById('liqpay-pay-btn');
-  btn.disabled=true; btn.textContent='Завантаження...';
-  fetch('/liqpay/checkout-data/{lid}')
-    .then(r=>r.json())
-    .then(d=>{{
-      if(!d.data||!d.signature)throw new Error('no data');
-      var f=document.createElement('form');
-      f.method='POST'; f.action='https://www.liqpay.ua/api/3/checkout'; f.target='_blank';
-      var i1=document.createElement('input'); i1.type='hidden'; i1.name='data'; i1.value=d.data;
-      var i2=document.createElement('input'); i2.type='hidden'; i2.name='signature'; i2.value=d.signature;
-      f.appendChild(i1); f.appendChild(i2); document.body.appendChild(f); f.submit();
-      btn.disabled=false; btn.textContent='Оплатити через LiqPay';
-    }})
-    .catch(()=>{{ btn.disabled=false; btn.textContent='Оплатити через LiqPay'; }});
-}}
-</script>
-</div>'''
-
     elif mode == "redirect":
-        return f'''<div class="section" id="liqpay-section">
-<div class="sec-label">\U0001F4B3 Оплата карткою</div>
+        # Кнопка "Онлайн оплата" — POST на LiqPay
+        return f"""<div class="section" id="liqpay-section">
+<div class="sec-label">Онлайн оплата</div>
 <form id="liqpay-form" method="POST" action="https://www.liqpay.ua/api/3/checkout">
 <input type="hidden" name="data" id="liqpay-data">
 <input type="hidden" name="signature" id="liqpay-sig">
@@ -417,78 +391,11 @@ fetch('/liqpay/checkout-data/{lid}')
     document.getElementById('liqpay-data').value=d.data;
     document.getElementById('liqpay-sig').value=d.signature;
     var btn=document.querySelector('#liqpay-form button');
-    btn.disabled=false; btn.textContent='Оплатити через LiqPay \u2192';
+    btn.disabled=false; btn.textContent='Онлайн оплата \u2192';
   }})
   .catch(()=>{{
     document.querySelector('#liqpay-form button').textContent='Помилка завантаження';
   }});
-</script>
-</div>'''
-
-    elif mode == "gpay_apay":
-        # Inline виджет з тільки Google Pay + Apple Pay
-        return f"""<div class="section" id="liqpay-section">
-<div class="sec-label">Швидка оплата</div>
-<div id="liqpay-widget-container" style="min-height:120px;display:flex;align-items:center;justify-content:center;gap:12px">
-<div style="color:var(--muted);font-size:13px">Завантаження...</div>
-</div>
-<script src="https://static.liqpay.ua/libjs/checkout.js"></script>
-<script>
-(function(){{
-  fetch('/liqpay/checkout-data/{lid}')
-    .then(r=>r.json())
-    .then(d=>{{
-      if(d.data && d.signature){{
-        LiqPayCheckout.init({{
-          data: d.data,
-          signature: d.signature,
-          embedTo: "#liqpay-widget-container",
-          mode: "embed"
-        }}).on("liqpay.callback", function(data){{
-          if(data.status==="success"||data.status==="sandbox"){{
-            document.getElementById('liqpay-section').innerHTML=
-              '<div style="text-align:center;padding:20px"><div style="font-size:48px">\u2705</div>'
-              +'<div style="font-size:18px;font-weight:700;color:#1D6F42;margin-top:8px">Оплата успiшна!</div></div>';
-          }}
-        }});
-      }} else {{
-        document.getElementById('liqpay-widget-container').innerHTML=
-          '<div style="color:#D92D20;font-size:13px">Не вдалося завантажити</div>';
-      }}
-    }})
-    .catch(()=>{{
-      document.getElementById('liqpay-widget-container').innerHTML=
-        '<div style="color:#D92D20;font-size:13px">Помилка завантаження</div>';
-    }});
-}})();
-</script>
-</div>"""
-
-    elif mode in ("gpay", "apay"):
-        btn_label = "Оплатити Google Pay" if mode == "gpay" else "Оплатити Apple Pay"
-        btn_color = "#3C4043" if mode == "gpay" else "#000000"
-        return f"""<div class="section" id="liqpay-section">
-<div class="sec-label">{btn_label}</div>
-<button class="pay-btn" id="liqpay-pay-btn" onclick="liqpayPaySpecial()" style="background:{btn_color}">
-{btn_label}
-</button>
-<script>
-function liqpayPaySpecial(){{
-  var btn=document.getElementById('liqpay-pay-btn');
-  btn.disabled=true; btn.textContent='Завантаження...';
-  fetch('/liqpay/checkout-data/{lid}')
-    .then(r=>r.json())
-    .then(d=>{{
-      if(!d.data||!d.signature)throw new Error('no data');
-      var f=document.createElement('form');
-      f.method='POST'; f.action='https://www.liqpay.ua/api/3/checkout'; f.target='_blank';
-      var i1=document.createElement('input'); i1.type='hidden'; i1.name='data'; i1.value=d.data;
-      var i2=document.createElement('input'); i2.type='hidden'; i2.name='signature'; i2.value=d.signature;
-      f.appendChild(i1); f.appendChild(i2); document.body.appendChild(f); f.submit();
-      btn.disabled=false; btn.textContent='{btn_label}';
-    }})
-    .catch(()=>{{ btn.disabled=false; btn.textContent='{btn_label}'; }});
-}}
 </script>
 </div>"""
 

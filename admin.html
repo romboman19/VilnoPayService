@@ -109,25 +109,9 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div class="fg"><label>LiqPay Private Key</label><input id="rcv-lp-priv" type="password" placeholder="xxxxxxxxxxxxxxxx" class="mono"><div style="font-size:11px;color:var(--muted);margin-top:4px">Зашифровано. При редагуваннi — залиште порожнiм щоб не змiнювати.</div></div>
 <div class="fg"><label>Режим вiдображення</label><select id="rcv-lp-mode">
 <option value="widget">Вiджет (вбудований на сторiнку)</option>
-<option value="button">Кнопка (вiдкриє LiqPay в новому вiкнi)</option>
-<option value="redirect">Redirect (POST-форма на LiqPay)</option>
-<option value="gpay">Кнопка Google Pay</option>
-<option value="apay">Кнопка Apple Pay</option>
-<option value="gpay_apay">Google Pay + Apple Pay (inline)</option>
+<option value="redirect">Кнопка "Онлайн оплата" (redirect на LiqPay)</option>
 </select></div>
-<div class="fg"><label>Методи оплати</label>
-<div id="rcv-lp-methods-checks" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:8px;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:10px">
-<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="card"> 💳 Картка</label>
-<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="gpay"> 🟢 Google Pay</label>
-<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="apay"> 🍎 Apple Pay</label>
-<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="privat24"> 🏦 Privat24</label>
-<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="qr"> 📱 QR-код</label>
-<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="moment_part"> 📅 Розстрочка</label>
-<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="paypart"> ✂️ Оплата частинами</label>
-<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="cash"> 💵 Готiвкою</label>
-<label style="font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0"><input type="checkbox" class="lp-method" value="invoice"> 📧 Рахунок на e-mail</label>
-</div>
-<div style="font-size:11px;color:var(--muted);margin-top:4px">Якщо нічого не обрано — використовуються налаштування магазину LiqPay</div></div>
+
 <div class="fg"><label><input type="checkbox" id="rcv-lp-sandbox"> Sandbox (тестовий режим)</label></div>
 </div>
 <div class="err" id="rcv-err"></div>
@@ -315,7 +299,7 @@ async function loadRcv(){
     h+='</tbody></table></div>';el.innerHTML=h;
   }catch(e){toast('Помилка: '+e.message);}
 }
-function showRcvForm(){E('rcv-form').style.display='block';E('rcv-form-t').textContent='Новий отримувач';E('rcv-ek').value='';E('rcv-n').value='';E('rcv-r').value='';E('rcv-i').value='';E('rcv-e').value='';E('rcv-provider').value='';E('rcv-lp-pub').value='';E('rcv-lp-priv').value='';E('rcv-lp-mode').value='widget';setLpMethods('[]');E('rcv-lp-sandbox').checked=false;E('rcv-err').textContent='';}
+function showRcvForm(){E('rcv-form').style.display='block';E('rcv-form-t').textContent='Новий отримувач';E('rcv-ek').value='';E('rcv-n').value='';E('rcv-r').value='';E('rcv-i').value='';E('rcv-e').value='';E('rcv-provider').value='';E('rcv-lp-pub').value='';E('rcv-lp-priv').value='';E('rcv-lp-mode').value='widget';E('rcv-lp-sandbox').checked=false;E('rcv-err').textContent='';}
 function hideRcvForm(){E('rcv-form').style.display='none';}
 async function editRcv(key){
   const rows=await api('GET','/admin/receivers');const r=rows.find(x=>x.receiver_key===key);if(!r)return;
@@ -326,7 +310,6 @@ async function editRcv(key){
   E('rcv-lp-pub').value=r.liqpay_public_key||'';
   E('rcv-lp-priv').value='';
   E('rcv-lp-mode').value=r.liqpay_display_mode||'widget';
-  setLpMethods(r.liqpay_pay_methods||'[]');
   E('rcv-lp-sandbox').checked=r.liqpay_sandbox||false;
   toggleProviderFields();
 }function toggleProviderFields(){
@@ -334,13 +317,13 @@ async function editRcv(key){
   E('provider-fields').style.display = v ? 'block' : 'none';
   if(!v){
     E('rcv-lp-pub').value='';E('rcv-lp-priv').value='';
-    E('rcv-lp-mode').value='widget';setLpMethods('[]');
+    E('rcv-lp-mode').value='widget';
     E('rcv-lp-sandbox').checked=false;
   }
 }
 
 async function saveRcv(){
-  const key=E('rcv-ek').value,body={name:E('rcv-n').value,receiver:E('rcv-r').value,iban:E('rcv-i').value,edrpou:E('rcv-e').value,liqpay_public_key:E('rcv-lp-pub').value.trim(),liqpay_private_key:E('rcv-lp-priv').value.trim(),liqpay_display_mode:E('rcv-lp-mode').value,liqpay_pay_methods:JSON.stringify(getLpMethods()),liqpay_sandbox:E('rcv-lp-sandbox').checked};
+  const key=E('rcv-ek').value,body={name:E('rcv-n').value,receiver:E('rcv-r').value,iban:E('rcv-i').value,edrpou:E('rcv-e').value,liqpay_public_key:E('rcv-lp-pub').value.trim(),liqpay_private_key:E('rcv-lp-priv').value.trim(),liqpay_display_mode:E('rcv-lp-mode').value,liqpay_sandbox:E('rcv-lp-sandbox').checked};
   try{
     E('rcv-err').textContent='';
     if(key){body.is_active=true;await api('PUT','/admin/receivers/'+key,body);toast('Оновлено');}
