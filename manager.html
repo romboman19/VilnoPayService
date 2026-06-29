@@ -128,7 +128,9 @@ async function api(method,url,body){
   if(body)o.body=JSON.stringify(body);
   const r=await fetch(url,o);
   if(r.status===401&&!url.includes('/login')){showLogin();throw new Error('Session expired');}
-  const d=await r.json();if(!r.ok)throw new Error(d.detail||'Помилка');return d;
+  const text=await r.text();
+  let d;try{d=JSON.parse(text);}catch(e){throw new Error('Сервер: '+text.substring(0,200));}
+  if(!r.ok)throw new Error(d.detail||'Помилка '+r.status);return d;
 }
 
 async function doLogin(){

@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS payment_links_log (
     receiver_key    VARCHAR(50) NOT NULL,
     purpose         TEXT NOT NULL,
     amount          VARCHAR(20),
-    api_key_prefix  VARCHAR(12),
+    api_key_prefix  VARCHAR(50),
     created_ip      VARCHAR(45),
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );

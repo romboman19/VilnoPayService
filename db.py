@@ -96,7 +96,8 @@ def _migrate():
             viewed_at       TIMESTAMPTZ DEFAULT NOW()
         )''',
         "CREATE INDEX IF NOT EXISTS idx_page_views_link ON page_views_log(link_id)",
-        "CREATE INDEX IF NOT EXISTS idx_page_views_viewed ON page_views_log(viewed_at)",
+        """CREATE INDEX IF NOT EXISTS idx_page_views_viewed ON page_views_log(viewed_at)""",
+        "ALTER TABLE payment_links_log ALTER COLUMN api_key_prefix TYPE VARCHAR(50)",
         # Ролі
         "ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'admin'",
         # Шаблони платежів
