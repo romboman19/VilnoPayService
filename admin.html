@@ -348,6 +348,7 @@ async function loadBrand(){
         else el.value=s[k];
       }
     }
+    if(s.block_order){E('s-block_order').value=s.block_order;try{renderBlockOrder(JSON.parse(s.block_order));}catch(e){renderBlockOrder(['nbu_qr','liqpay','requisites']);}}
     if(s.logo_filename){E('logo-preview-wrap').innerHTML='<img src="/static/'+esc(s.logo_filename)+'?t='+Date.now()+'" class="logo-preview" alt="Logo">';}
   }catch(e){}
 }
@@ -356,7 +357,7 @@ async function saveBrand(){
   const settings={};for(const k of keys){
     const el=E('s-'+k);if(el)settings[k]=el.value;
   }
-  try{await api('PUT','/admin/settings',{settings});toast('Збережено');}catch(e){toast('Помилка: '+e.message);}
+  settings['block_order']=E('s-block_order').value;try{await api('PUT','/admin/settings',{settings});toast('Збережено');}catch(e){toast('Помилка: '+e.message);}catch(e){toast('Помилка: '+e.message);}
 }
 function previewBrand(){window.open('/admin/preview','_blank');}
 async function revokeKey(id){

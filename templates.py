@@ -382,7 +382,7 @@ def liqpay_block_html(link_id, provider, amount_raw, liqpay_paid=None):
 <form id="liqpay-form" method="POST" action="https://www.liqpay.ua/api/3/checkout">
 <input type="hidden" name="data" id="liqpay-data">
 <input type="hidden" name="signature" id="liqpay-sig">
-<button type="submit" class="pay-btn" style="background:#7ab72b" disabled>Завантаження...</button>
+<button type="submit" class="pay-btn"  disabled>Завантаження...</button>
 </form>
 <script>
 fetch('/liqpay/checkout-data/{lid}')
