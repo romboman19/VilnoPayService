@@ -148,15 +148,15 @@ def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
 
     # NBU QR блок
     nbu_qr_block = f"""<div class="section">
-<a class="pay-btn" href="{{nbu}}" target="_blank" rel="noopener">
-{{BANK_ICON}} Оплатити через додаток банку
+<a class="pay-btn" href="{nbu}" target="_blank" rel="noopener">
+{BANK_ICON} Оплатити через додаток банку
 </a>
 </div>
 
 
 <div class="section">
 <div class="qr-wrap">
-<img class="qr-img" id="qr-image" src="data:image/png;base64,{{qr_b64}}" alt="QR код" loading="eager" onclick="shareQR()">
+<img class="qr-img" id="qr-image" src="data:image/png;base64,{qr_b64}" alt="QR код" loading="eager" onclick="shareQR()">
 <div class="qr-tap">Для оплати через додаток банку (Android):</div>
 <div class="hint-steps" style="text-align:left;margin-top:10px">
 <div class="hint-step"><span class="hint-step-num">1</span><span>Натисніть на QR-код, щоб поділитися з додатком банку</span></div>
@@ -176,7 +176,7 @@ def pay_page_html(nbu_url, receiver, iban, purpose, amount_line, qr_b64,
     # Реквізити блок
     requisites_block = f"""<div class="section">
 <div class="sec-label">Реквізити для переказу</div>
-{{reqs}}
+{reqs}
 <button class="copy-all" onclick="copyAll(this)">Скопіювати всі реквізити</button>
 </div>"""
 
@@ -462,15 +462,15 @@ def liqpay_result_html(tx, settings=None, logo_url=""):
 
     # NBU QR блок
     nbu_qr_block = f"""<div class="section">
-<a class="pay-btn" href="{{nbu}}" target="_blank" rel="noopener">
-{{BANK_ICON}} Оплатити через додаток банку
+<a class="pay-btn" href="{nbu}" target="_blank" rel="noopener">
+{BANK_ICON} Оплатити через додаток банку
 </a>
 </div>
 
 
 <div class="section">
 <div class="qr-wrap">
-<img class="qr-img" id="qr-image" src="data:image/png;base64,{{qr_b64}}" alt="QR код" loading="eager" onclick="shareQR()">
+<img class="qr-img" id="qr-image" src="data:image/png;base64,{qr_b64}" alt="QR код" loading="eager" onclick="shareQR()">
 <div class="qr-tap">Для оплати через додаток банку (Android):</div>
 <div class="hint-steps" style="text-align:left;margin-top:10px">
 <div class="hint-step"><span class="hint-step-num">1</span><span>Натисніть на QR-код, щоб поділитися з додатком банку</span></div>
@@ -490,7 +490,7 @@ def liqpay_result_html(tx, settings=None, logo_url=""):
     # Реквізити блок
     requisites_block = f"""<div class="section">
 <div class="sec-label">Реквізити для переказу</div>
-{{reqs}}
+{reqs}
 <button class="copy-all" onclick="copyAll(this)">Скопіювати всі реквізити</button>
 </div>"""
 
