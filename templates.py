@@ -425,6 +425,45 @@ fetch('/liqpay/checkout-data/{lid}')
 </script>
 </div>'''
 
+    elif mode == "gpay_apay":
+        # Inline виджет з тільки Google Pay + Apple Pay
+        return f"""<div class="section" id="liqpay-section">
+<div class="sec-label">Швидка оплата</div>
+<div id="liqpay-widget-container" style="min-height:120px;display:flex;align-items:center;justify-content:center;gap:12px">
+<div style="color:var(--muted);font-size:13px">Завантаження...</div>
+</div>
+<script src="https://static.liqpay.ua/libjs/checkout.js"></script>
+<script>
+(function(){{
+  fetch('/liqpay/checkout-data/{lid}')
+    .then(r=>r.json())
+    .then(d=>{{
+      if(d.data && d.signature){{
+        LiqPayCheckout.init({{
+          data: d.data,
+          signature: d.signature,
+          embedTo: "#liqpay-widget-container",
+          mode: "embed"
+        }}).on("liqpay.callback", function(data){{
+          if(data.status==="success"||data.status==="sandbox"){{
+            document.getElementById('liqpay-section').innerHTML=
+              '<div style="text-align:center;padding:20px"><div style="font-size:48px">\u2705</div>'
+              +'<div style="font-size:18px;font-weight:700;color:#1D6F42;margin-top:8px">Оплата успiшна!</div></div>';
+          }}
+        }});
+      }} else {{
+        document.getElementById('liqpay-widget-container').innerHTML=
+          '<div style="color:#D92D20;font-size:13px">Не вдалося завантажити</div>';
+      }}
+    }})
+    .catch(()=>{{
+      document.getElementById('liqpay-widget-container').innerHTML=
+        '<div style="color:#D92D20;font-size:13px">Помилка завантаження</div>';
+    }});
+}})();
+</script>
+</div>"""
+
     elif mode in ("gpay", "apay"):
         btn_label = "Оплатити Google Pay" if mode == "gpay" else "Оплатити Apple Pay"
         btn_color = "#3C4043" if mode == "gpay" else "#000000"

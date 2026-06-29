@@ -778,6 +778,8 @@ def liqpay_checkout_data(request: Request, link_id: str):
     display_mode = lp.get("liqpay_display_mode", "widget")
     if display_mode in ("gpay", "apay"):
         lp_params["paytypes"] = display_mode
+    elif display_mode == "gpay_apay":
+        lp_params["paytypes"] = "gpay,apay"
     else:
         try:
             methods = json.loads(lp.get("liqpay_pay_methods", "[]"))
