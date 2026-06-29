@@ -98,9 +98,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             csp = ("default-src 'self'; "
                    "img-src 'self' data:; "
                    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-                   "script-src 'self' 'unsafe-inline' https://static.liqpay.ua; "
+                   "script-src 'self' 'unsafe-inline' https://static.liqpay.ua https://static.cloudflareinsights.com; "
                    "frame-src 'self' https://www.liqpay.ua https://static.liqpay.ua; "
-                   "connect-src 'self' https://www.liqpay.ua; "
+                   "connect-src 'self' https://www.liqpay.ua https://www.cloudflareinsights.com; "
                    "font-src 'self' https://fonts.gstatic.com")
             resp.headers["Content-Security-Policy"] = csp
         return resp
