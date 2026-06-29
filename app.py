@@ -652,7 +652,7 @@ def manager_receivers(request: Request):
 @app.get("/manager", response_class=HTMLResponse)
 @app.get("/manager/", response_class=HTMLResponse)
 def manager_page(request: Request):
-    _require_manager(request)
+    # HTML сторiнка без авторизацiї — JS перевiряє логiн
     manager_html_path = Path(__file__).parent / "manager.html"
     if manager_html_path.exists():
         return HTMLResponse(manager_html_path.read_text(encoding="utf-8"))
