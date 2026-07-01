@@ -26,12 +26,11 @@ from db import (
     update_receiver, delete_receiver,
     create_admin_session, get_admin_session, delete_admin_session,
     log_payment_link, log_page_view, list_page_views, list_page_views_for_link,
-    cleanup_expired_sessions,
     create_manager, list_managers, delete_manager, toggle_manager,
     create_template, list_templates, delete_template,
     # Payment providers
-    create_provider, get_provider_by_type, get_active_providers, list_providers,
-    update_provider, delete_provider, get_provider_decrypted,
+    create_provider, list_providers,
+    update_provider, delete_provider,
     create_liqpay_tx, update_liqpay_tx, get_liqpay_tx_by_link, list_liqpay_transactions,
     get_receiver_liqpay_private
 )
@@ -772,7 +771,7 @@ def liqpay_checkout_data(request: Request, link_id: str):
         raise HTTPException(500, "Ключі LiqPay не налаштовані")
     lp = rcv  # використовуємо дані отримувача
     order_id = f"vp_{link_id}_{secrets.token_urlsafe(6)}"
-    create_liqpay_tx(link_id, order_id, 0)  # provider_id=0 (сирота, бо прив'язка до отримувача)
+    create_liqpay_tx(link_id, order_id, None)  # provider_id відсутній: LiqPay прив'язаний до отримувача
     lp_params = {
         "version": 3,
         "public_key": lp["liqpay_public_key"],

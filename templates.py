@@ -411,8 +411,6 @@ def liqpay_result_html(tx, settings=None, logo_url=""):
     bg = _h.escape(s.get("bg_color", "#F8F9FB"))
     cc_color = _h.escape(s.get("card_color", "#FFFFFF"))
     bc = _h.escape(s.get("border_color", "#EAECF0"))
-    pc = _h.escape(s.get("primary_color", "#1D6F42"))
-    tc = _h.escape(s.get("text_color", "#101828"))
     pt = _h.escape(s.get("page_title", "VilnoPay"))
     lu = _h.escape(logo_url) if logo_url else ""
     logo = f'<img src="{lu}" alt="Logo" style="max-height:44px;margin-bottom:8px;border-radius:8px;">' if lu else ""
@@ -432,53 +430,6 @@ def liqpay_result_html(tx, settings=None, logo_url=""):
         title = "Обробка оплати"
         desc = "Зачекайте — статус оновиться автоматично"
         color = "#F59E0B"
-
-    # ── Динамічний порядок блоків ──
-    if block_order is None:
-        block_order = ["nbu_qr", "liqpay", "requisites"]
-
-    # NBU QR блок
-    nbu_qr_block = f"""<div class="section">
-<a class="pay-btn" href="{nbu}" target="_blank" rel="noopener">
-{BANK_ICON} Оплатити через додаток банку
-</a>
-</div>
-
-
-<div class="section">
-<div class="qr-wrap">
-<img class="qr-img" id="qr-image" src="data:image/png;base64,{qr_b64}" alt="QR код" loading="eager" onclick="shareQR()">
-<div class="qr-tap">Для оплати через додаток банку (Android):</div>
-<div class="hint-steps" style="text-align:left;margin-top:10px">
-<div class="hint-step"><span class="hint-step-num">1</span><span>Натисніть на QR-код, щоб поділитися з додатком банку</span></div>
-<div class="hint-step"><span class="hint-step-num">2</span><span>Оберіть додаток вашого банку у вікні</span></div>
-<div class="hint-step"><span class="hint-step-num">3</span><span>Підтвердьте платіж у додатку банку</span></div>
-</div>
-</div>
-</div>"""
-
-    # LiqPay блок
-    liqpay_block = ""
-    lp = next((p for p in (providers or []) if p.get("provider_type") == "liqpay"), None)
-    if lp:
-        amt_raw = amount_line.replace(" грн", "").replace("за домовленістю", "").strip()
-        liqpay_block = liqpay_block_html(link_id, lp, amt_raw, liqpay_paid)
-
-    # Реквізити блок
-    requisites_block = f"""<div class="section">
-<div class="sec-label">Реквізити для переказу</div>
-<div class="req-container">
-{reqs}
-</div>
-<button class="copy-all" onclick="copyAll(this)">Скопіювати всі реквізити</button>
-</div>"""
-
-    block_map = {
-        "nbu_qr": nbu_qr_block,
-        "liqpay": liqpay_block,
-        "requisites": requisites_block,
-    }
-    blocks_html = "\n".join(block_map.get(b, "") for b in block_order)
 
     return f"""<!DOCTYPE html>
 <html lang="uk"><head>
