@@ -29,8 +29,6 @@ from db import (
     create_manager, list_managers, delete_manager, toggle_manager,
     create_template, list_templates, delete_template,
     # Payment providers
-    create_provider, list_providers,
-    update_provider, delete_provider,
     create_liqpay_tx, update_liqpay_tx, get_liqpay_tx_by_link, list_liqpay_transactions,
     get_receiver_liqpay_private
 )
@@ -871,51 +869,6 @@ def liqpay_result(request: Request, link_id: str):
     logo_fn = settings.get("logo_filename", "")
     logo_url = f"/static/{logo_fn}" if logo_fn else ""
     return HTMLResponse(liqpay_result_html(tx, settings, logo_url))
-
-
-# ── Admin: Payment Providers ────────────────────────────────
-
-@app.get("/admin/providers")
-def admin_list_providers(request: Request):
-    _require_role(request, "admin")
-    return list_providers()
-
-
-@app.post("/admin/providers")
-def admin_create_provider(request: Request, body: dict):
-    _require_role(request, "admin")
-    required = ["provider_type", "name", "public_key", "private_key"]
-    for f in required:
-        if not body.get(f, "").strip():
-            raise HTTPException(400, f"Поле {f} обов'язкове")
-    prov = create_provider(
-        provider_type=body["provider_type"].strip(),
-        name=body["name"].strip(),
-        public_key=body["public_key"].strip(),
-        private_key=body["private_key"].strip(),
-        display_mode=body.get("display_mode", "widget"),
-        pay_methods=body.get("pay_methods", '["card","privat24","wallet"]'),
-        is_sandbox=body.get("is_sandbox", False),
-        extra_config=body.get("extra_config", "{}")
-    )
-    logger.info("PROVIDER_CREATED type=%s name=%s", body["provider_type"], body["name"])
-    return prov or {"ok": True}
-
-
-@app.put("/admin/providers/{provider_id}")
-def admin_update_provider(request: Request, provider_id: int, body: dict):
-    _require_role(request, "admin")
-    update_provider(provider_id, **body)
-    logger.info("PROVIDER_UPDATED id=%s", provider_id)
-    return {"ok": True}
-
-
-@app.delete("/admin/providers/{provider_id}")
-def admin_delete_provider(request: Request, provider_id: int):
-    _require_role(request, "admin")
-    delete_provider(provider_id)
-    logger.info("PROVIDER_DELETED id=%s", provider_id)
-    return {"ok": True}
 
 
 @app.get("/admin/liqpay-transactions")
