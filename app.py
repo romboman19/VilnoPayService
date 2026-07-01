@@ -21,7 +21,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from db import (
     init_db, pg_query, pg_execute,
     get_settings, update_settings, get_link_ttl,
-    validate_api_key, create_api_key, list_api_keys, revoke_api_key,
+    validate_api_key, create_api_key, list_api_keys, update_api_key_allowed_ips, revoke_api_key,
     create_receiver, get_receiver_by_key, list_receivers,
     update_receiver, delete_receiver,
     create_admin_session, get_admin_session, delete_admin_session,
@@ -117,12 +117,12 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # ── Helpers ──────────────────────────────────────────────────
 
-def _check_api_key(key: str | None):
+def _check_api_key(key: str | None, client_ip: str | None = None):
     if not key or not key.startswith("vpk_"):
         raise HTTPException(401, "API key required (vpk_...)")
-    result = validate_api_key(key)
+    result = validate_api_key(key, client_ip=client_ip)
     if not result:
-        raise HTTPException(401, "Invalid API key")
+        raise HTTPException(401, "Invalid API key or IP not allowed")
     return result
 
 def _require_admin(request: Request) -> dict:
@@ -299,6 +299,23 @@ class ApiKeyCreate(BaseModel):
     label: str = "default"
 
 
+class ApiKeyAllowedIpsUpdate(BaseModel):
+    allowed_ips: list[str]
+
+    @field_validator("allowed_ips")
+    @classmethod
+    def val_ips(cls, v):
+        cleaned = []
+        for ip in v:
+            ip = ip.strip()
+            if not ip:
+                continue
+            if not re.match(r"^[0-9a-fA-F:.\/]{3,64}$", ip):
+                raise ValueError("Невірний формат IP/CIDR")
+            cleaned.append(ip)
+        return cleaned
+
+
 # ══════════════════════════════════════════════════════════════
 # ENDPOINTS
 # ══════════════════════════════════════════════════════════════
@@ -380,8 +397,6 @@ def admin_update_settings(request: Request, body: SettingsUpdate):
         forbidden = ["url(", "expression(", "import", "@charset", "javascript:"]
         if any(f in css.lower() for f in forbidden):
             raise HTTPException(400, "custom_css: заборонені конструкції")
-    update_settings(filtered)
-        # Валідація block_order
     if "block_order" in filtered:
         try:
             order = json.loads(filtered["block_order"])
@@ -390,6 +405,7 @@ def admin_update_settings(request: Request, body: SettingsUpdate):
                 raise HTTPException(400, "block_order: невірний формат")
         except (json.JSONDecodeError, TypeError):
             raise HTTPException(400, "block_order: невалідний JSON")
+    update_settings(filtered)
     logger.info("SETTINGS_UPDATED keys=%s", list(filtered.keys()))
     return {"ok": True}
 
@@ -468,6 +484,13 @@ def admin_revoke_api_key(request: Request, key_id: int):
     _require_role(request, "admin")
     revoke_api_key(key_id)
     logger.info("API_KEY_REVOKED id=%s", key_id)
+    return {"ok": True}
+
+@app.put("/admin/api-keys/{key_id}/allowed-ips")
+def admin_update_api_key_allowed_ips(request: Request, key_id: int, body: ApiKeyAllowedIpsUpdate):
+    _require_role(request, "admin")
+    update_api_key_allowed_ips(key_id, body.allowed_ips)
+    logger.info("API_KEY_ALLOWED_IPS_UPDATED id=%s count=%d", key_id, len(body.allowed_ips))
     return {"ok": True}
 
 
@@ -915,7 +938,7 @@ def upload_invoice(request: Request, file: UploadFile = File(...),
                    x_api_key: str | None = Header(None, alias="X-API-Key")):
     # Приймати або API ключ, або менеджерську сесію
     if x_api_key and x_api_key.startswith("vpk_"):
-        _check_api_key(x_api_key)
+        _check_api_key(x_api_key, client_ip=get_remote_address(request))
     else:
         _require_manager(request)
     if file.content_type != "application/pdf":
@@ -949,7 +972,7 @@ def upload_invoice(request: Request, file: UploadFile = File(...),
 @limiter.limit("10/minute")
 def generate(request: Request, req: GenerateRequest,
              x_api_key: str | None = Header(None, alias="X-API-Key")):
-    api_info = _check_api_key(x_api_key)
+    api_info = _check_api_key(x_api_key, client_ip=get_remote_address(request))
     try:
         # Знайти отримувача за ключем
         rcv = get_receiver_by_key(req.receiver_key)

@@ -128,6 +128,8 @@ def _migrate():
         "ALTER TABLE receivers ADD COLUMN IF NOT EXISTS liqpay_display_mode VARCHAR(30) DEFAULT ''",
         "ALTER TABLE receivers ADD COLUMN IF NOT EXISTS liqpay_pay_methods TEXT DEFAULT '[\"card\",\"privat24\",\"wallet\"]'",
         "ALTER TABLE receivers ADD COLUMN IF NOT EXISTS liqpay_sandbox BOOLEAN DEFAULT FALSE",
+        # IP whitelist для API-ключів
+        "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS allowed_ips TEXT NOT NULL DEFAULT ''",
         # Зробити provider_id nullable (LiqPay прив'язаний до отримувача, не до провайдера)
         "ALTER TABLE liqpay_transactions ALTER COLUMN provider_id DROP NOT NULL",
         # Payment providers
@@ -206,16 +208,26 @@ def hash_api_key(key: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
 
 
-def validate_api_key(key: str | None) -> dict | None:
+def _parse_allowed_ips(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    return [ip.strip() for ip in str(raw).split(",") if ip.strip()]
+
+
+def validate_api_key(key: str | None, client_ip: str | None = None) -> dict | None:
     if not key:
         return None
     key_hash = hash_api_key(key)
     row = pg_query(
-        "SELECT id, key_prefix, label, is_active FROM api_keys WHERE key_hash = %s",
+        "SELECT id, key_prefix, label, allowed_ips, is_active FROM api_keys WHERE key_hash = %s",
         (key_hash,), fetchone=True
     )
     if row and row["is_active"]:
+        allowed_ips = _parse_allowed_ips(row.get("allowed_ips"))
+        if allowed_ips and client_ip not in allowed_ips:
+            return None
         pg_execute("UPDATE api_keys SET last_used_at = NOW() WHERE id = %s", (row["id"],))
+        row["allowed_ips"] = allowed_ips
         return row
     return None
 
@@ -237,10 +249,18 @@ def create_api_key(label: str = "default") -> tuple[str, dict]:
 
 
 def list_api_keys() -> list:
-    return pg_query(
-        "SELECT id, key_prefix, label, is_active, last_used_at, created_at FROM api_keys ORDER BY created_at DESC",
+    rows = pg_query(
+        "SELECT id, key_prefix, label, allowed_ips, is_active, last_used_at, created_at FROM api_keys ORDER BY created_at DESC",
         fetchall=True
     ) or []
+    for row in rows:
+        row["allowed_ips"] = _parse_allowed_ips(row.get("allowed_ips"))
+    return rows
+
+
+def update_api_key_allowed_ips(key_id: int, allowed_ips: list[str]):
+    csv = ",".join(ip.strip() for ip in allowed_ips if ip and ip.strip())
+    pg_execute("UPDATE api_keys SET allowed_ips = %s WHERE id = %s", (csv, key_id))
 
 
 def revoke_api_key(key_id: int):
@@ -329,10 +349,6 @@ def get_admin_session(token: str | None) -> dict | None:
 
 def delete_admin_session(token: str):
     pg_execute("DELETE FROM admin_sessions WHERE token = %s", (token,))
-
-
-def cleanup_expired_sessions():
-    pg_execute("DELETE FROM admin_sessions WHERE expires_at < NOW()")
 
 
 # ── Payment link log ────────────────────────────────────────

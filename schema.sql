@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
     key_hash        VARCHAR(128) NOT NULL,         -- SHA-256 хеш ключа
     key_prefix      VARCHAR(12) NOT NULL,          -- перші 8 символів для ідентифікації
     label           VARCHAR(100) NOT NULL DEFAULT 'default',
+    allowed_ips     TEXT NOT NULL DEFAULT '',      -- CSV whitelist; порожньо = будь-який IP
     is_active       BOOLEAN DEFAULT TRUE,
     last_used_at    TIMESTAMPTZ,
     created_at      TIMESTAMPTZ DEFAULT NOW()
