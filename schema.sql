@@ -51,6 +51,8 @@ INSERT INTO settings (key, value) VALUES
     ('border_color',   '#EAECF0'),
     ('font_family',    'Inter'),
     ('font_size',      '15'),
+    ('admin_allowed_ips', ''),
+    ('manager_allowed_ips', ''),
     ('page_title',     'VilnoPay'),
     ('page_subtitle',  'Безпечна оплата переказом'),
     ('footer_text',    'VilnoPayService · Захищено'),

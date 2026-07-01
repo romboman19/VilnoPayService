@@ -1,7 +1,7 @@
 """
 VilnoPayService — модуль роботи з PostgreSQL.
 """
-import hashlib, logging, os, secrets
+import hashlib, ipaddress, logging, os, secrets
 from pathlib import Path
 
 import bcrypt
@@ -96,6 +96,8 @@ def _migrate():
         "INSERT INTO settings (key, value) VALUES ('border_color', '#EAECF0') ON CONFLICT (key) DO NOTHING",
         "INSERT INTO settings (key, value) VALUES ('font_family', 'Inter') ON CONFLICT (key) DO NOTHING",
         "INSERT INTO settings (key, value) VALUES ('font_size', '15') ON CONFLICT (key) DO NOTHING",
+        "INSERT INTO settings (key, value) VALUES ('admin_allowed_ips', '') ON CONFLICT (key) DO NOTHING",
+        "INSERT INTO settings (key, value) VALUES ('manager_allowed_ips', '') ON CONFLICT (key) DO NOTHING",
         # Таблиця переглядів
         '''CREATE TABLE IF NOT EXISTS page_views_log (
             id              SERIAL PRIMARY KEY,
@@ -214,6 +216,28 @@ def _parse_allowed_ips(raw: str | None) -> list[str]:
     return [ip.strip() for ip in str(raw).split(",") if ip.strip()]
 
 
+def ip_matches_allowlist(client_ip: str | None, allowed_ips: list[str]) -> bool:
+    if not allowed_ips:
+        return True
+    if not client_ip:
+        return False
+    try:
+        client_obj = ipaddress.ip_address(client_ip)
+    except ValueError:
+        return False
+    for item in allowed_ips:
+        try:
+            if "/" in item:
+                if client_obj in ipaddress.ip_network(item, strict=False):
+                    return True
+            else:
+                if client_obj == ipaddress.ip_address(item):
+                    return True
+        except ValueError:
+            continue
+    return False
+
+
 def validate_api_key(key: str | None, client_ip: str | None = None) -> dict | None:
     if not key:
         return None
@@ -224,7 +248,7 @@ def validate_api_key(key: str | None, client_ip: str | None = None) -> dict | No
     )
     if row and row["is_active"]:
         allowed_ips = _parse_allowed_ips(row.get("allowed_ips"))
-        if allowed_ips and client_ip not in allowed_ips:
+        if not ip_matches_allowlist(client_ip, allowed_ips):
             return None
         pg_execute("UPDATE api_keys SET last_used_at = NOW() WHERE id = %s", (row["id"],))
         row["allowed_ips"] = allowed_ips

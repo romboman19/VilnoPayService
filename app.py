@@ -22,6 +22,7 @@ from db import (
     init_db, pg_query, pg_execute,
     get_settings, update_settings, get_link_ttl,
     validate_api_key, create_api_key, list_api_keys, update_api_key_allowed_ips, revoke_api_key,
+    ip_matches_allowlist, _parse_allowed_ips,
     create_receiver, get_receiver_by_key, list_receivers,
     update_receiver, delete_receiver,
     create_admin_session, get_admin_session, delete_admin_session,
@@ -125,17 +126,28 @@ def _check_api_key(key: str | None, client_ip: str | None = None):
         raise HTTPException(401, "Invalid API key or IP not allowed")
     return result
 
+def _enforce_panel_ip_whitelist(request: Request, role: str):
+    settings = get_settings()
+    raw = settings.get("admin_allowed_ips" if role == "admin" else "manager_allowed_ips", "")
+    allowed_ips = _parse_allowed_ips(raw)
+    client_ip = get_remote_address(request)
+    if allowed_ips and not ip_matches_allowlist(client_ip, allowed_ips):
+        raise HTTPException(403, "Доступ з цього IP заборонено")
+
+
 def _require_admin(request: Request) -> dict:
     token = request.cookies.get("session_token")
     session = get_admin_session(token)
     if not session:
         raise HTTPException(401, "Unauthorized")
+    _enforce_panel_ip_whitelist(request, "admin")
     return session
 
 def _require_manager(request: Request) -> dict:
     session = _require_admin(request)
     if session.get("role") != "manager":
         raise HTTPException(403, "Доступ лише для менеджерів")
+    _enforce_panel_ip_whitelist(request, "manager")
     return session
 
 def _require_role(request: Request, role: str) -> dict:
@@ -295,6 +307,24 @@ class ReceiverUpdate(ReceiverCreate):
 class SettingsUpdate(BaseModel):
     settings: dict[str, str]
 
+
+class AccessIpSettingsUpdate(BaseModel):
+    admin_allowed_ips: list[str]
+    manager_allowed_ips: list[str]
+
+    @field_validator("admin_allowed_ips", "manager_allowed_ips")
+    @classmethod
+    def val_ips(cls, v):
+        cleaned = []
+        for ip in v:
+            ip = ip.strip()
+            if not ip:
+                continue
+            if not re.match(r"^[0-9a-fA-F:.\/]{3,64}$", ip):
+                raise ValueError("Невірний формат IP/CIDR")
+            cleaned.append(ip)
+        return cleaned
+
 class ApiKeyCreate(BaseModel):
     label: str = "default"
 
@@ -388,7 +418,8 @@ def admin_update_settings(request: Request, body: SettingsUpdate):
     _require_role(request, "admin")
     allowed = {"logo_filename","bg_color","primary_color","accent_color",
                "text_color","card_color","border_color","font_family","font_size",
-               "page_title","page_subtitle","footer_text","link_ttl_hours","custom_css","block_order"}
+               "page_title","page_subtitle","footer_text","link_ttl_hours","custom_css","block_order",
+               "admin_allowed_ips","manager_allowed_ips"}
     filtered = {k: v for k, v in body.settings.items() if k in allowed}
     if "custom_css" in filtered:
         css = filtered["custom_css"]
@@ -405,6 +436,17 @@ def admin_update_settings(request: Request, body: SettingsUpdate):
                 raise HTTPException(400, "block_order: невірний формат")
         except (json.JSONDecodeError, TypeError):
             raise HTTPException(400, "block_order: невалідний JSON")
+    for key in ("admin_allowed_ips", "manager_allowed_ips"):
+        if key in filtered:
+            try:
+                parsed = json.loads(filtered[key]) if filtered[key].strip().startswith("[") else [x.strip() for x in filtered[key].split(",") if x.strip()]
+                for ip in parsed:
+                    if not re.match(r"^[0-9a-fA-F:.\/]{3,64}$", ip):
+                        raise HTTPException(400, f"{key}: невірний формат IP/CIDR")
+            except HTTPException:
+                raise
+            except Exception:
+                raise HTTPException(400, f"{key}: невалідний список IP/CIDR")
     update_settings(filtered)
     logger.info("SETTINGS_UPDATED keys=%s", list(filtered.keys()))
     return {"ok": True}
@@ -497,6 +539,26 @@ def admin_update_api_key_allowed_ips(request: Request, key_id: int, body: ApiKey
 # ── Admin Logo Upload ───────────────────────────────────────
 
 @app.post("/admin/upload-logo")
+@app.get("/admin/access-settings")
+def admin_get_access_settings(request: Request):
+    _require_role(request, "admin")
+    s = get_settings()
+    return {
+        "admin_allowed_ips": _parse_allowed_ips(s.get("admin_allowed_ips", "")),
+        "manager_allowed_ips": _parse_allowed_ips(s.get("manager_allowed_ips", "")),
+    }
+
+@app.put("/admin/access-settings")
+def admin_update_access_settings(request: Request, body: AccessIpSettingsUpdate):
+    _require_role(request, "admin")
+    update_settings({
+        "admin_allowed_ips": ",".join(body.admin_allowed_ips),
+        "manager_allowed_ips": ",".join(body.manager_allowed_ips),
+    })
+    logger.info("ACCESS_IP_SETTINGS_UPDATED admin=%d manager=%d", len(body.admin_allowed_ips), len(body.manager_allowed_ips))
+    return {"ok": True}
+
+
 def admin_upload_logo(request: Request, file: UploadFile = File(...)):
     _require_role(request, "admin")
     # Валідація типу (SVG заборонено — XSS ризик)
