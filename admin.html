@@ -409,7 +409,7 @@ async function loadKeys(){
   try{
     const rows=await api('GET','/admin/api-keys');const el=E('keys-tbl');
     if(!rows.length){el.innerHTML='<p style="color:var(--muted)">Немає ключів</p>';return;}
-    let h='<div class="resp-table"><table><thead><tr><th>Префікс</th><th>Назва</th><th>IP whitelist</th><th>Статус</th><th>Останнє використання</th><th></th></tr></thead><tbody>';
+    let h='<div class="resp-table"><table style="table-layout:fixed;width:100%"><thead><tr><th style="width:110px">Префікс</th><th style="width:120px">Назва</th><th>IP whitelist</th><th style="width:90px">Статус</th><th style="width:120px">Останнє використання</th><th style="width:88px">Дії</th></tr></thead><tbody>';
     for(const r of rows){
       const b=r.is_active?'<span class="badge badge-g">Активний</span>':'<span class="badge badge-r">Відкликано</span>';
       const ips=(r.allowed_ips&&r.allowed_ips.length)?esc(r.allowed_ips.join(', ')):'<span style="color:var(--muted)">будь-який IP</span>';
@@ -418,7 +418,7 @@ async function loadKeys(){
       const actions=r.is_active
         ? `<button class="btn btn-outline btn-sm" onclick="showAllowedIpsForm(${r.id}, '${prefix.replace(/'/g,"&#39;")}', '${esc(ipsArg).replace(/'/g,"&#39;")}')">IP</button> <button class="btn btn-red btn-sm" onclick="revokeKey(${r.id})">Відкликати</button>`
         : '';
-      h+=`<tr><td class="mono">${prefix}</td><td>${esc(r.label)}</td><td style="font-size:12px">${ips}</td><td>${b}</td><td>${fmtKiev(r.last_used_at)}</td><td>${actions}</td></tr>`;
+      h+=`<tr><td class="mono">${prefix}</td><td style="word-break:break-word">${esc(r.label)}</td><td style="font-size:12px;word-break:break-word">${ips}</td><td>${b}</td><td>${fmtKiev(r.last_used_at)}</td><td style="white-space:nowrap">${actions}</td></tr>`;
     }
     h+='</tbody></table></div>';el.innerHTML=h;
   }catch(e){toast('Помилка: '+e.message);}
