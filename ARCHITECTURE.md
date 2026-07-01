@@ -62,22 +62,35 @@ amount, api_key_prefix, IP, час.
 | Method | Path | Опис |
 |--------|------|------|
 | POST | `/generate` | Створити посилання (receiver_key + purpose + amount) |
-| GET | `/p/{link_id}` | Сторінка оплати (з брендингом) |
+| POST | `/upload-invoice` | Завантажити PDF-рахунок |
+| POST | `/liqpay/callback` | Callback від LiqPay |
+| GET | `/p/{link_id}` | Сторінка оплати |
+| GET | `/invoice/{link_id}` | Завантажити прикріплений PDF |
+| GET | `/liqpay/checkout-data/{link_id}` | Дані checkout для LiqPay |
+| GET | `/liqpay/result/{link_id}` | Сторінка результату LiqPay |
 | GET | `/health` | Статус сервісу |
 
-### Адмін (потрібна cookie-сесія)
+### Адмін / менеджер (cookie-сесія)
 | Method | Path | Опис |
 |--------|------|------|
 | GET | `/admin` | HTML-сторінка адмін-панелі |
 | POST | `/admin/login` | Логін |
 | POST | `/admin/logout` | Логаут |
-| GET | `/admin/me` | Поточний адмін |
+| GET | `/admin/me` | Поточний користувач сесії |
 | GET/PUT | `/admin/settings` | Брендинг |
 | GET/POST | `/admin/receivers` | Список / створення отримувачів |
 | PUT/DELETE | `/admin/receivers/{key}` | Оновлення / видалення |
-| GET/POST | `/admin/api-keys` | Список / створення API-ключів |
+| GET | `/admin/api-keys` | Список API-ключів |
 | DELETE | `/admin/api-keys/{id}` | Відкликання ключа |
 | GET | `/admin/links-log` | Аудит-лог |
+| GET | `/admin/views-log` | Перегляди клієнтами |
+| GET | `/admin/liqpay-transactions` | Лог транзакцій LiqPay |
+| GET | `/manager` | HTML-кабінет менеджера |
+| GET/POST | `/manager/templates` | Шаблони менеджера |
+| DELETE | `/manager/templates/{id}` | Видалення шаблону |
+| POST | `/manager/create-payment` | Створення платежу з кабінету |
+| GET | `/manager/history` | Історія платежів менеджера |
+| GET | `/manager/receivers` | Список отримувачів |
 
 ## Безпека
 
@@ -97,7 +110,7 @@ amount, api_key_prefix, IP, час.
 ### Session Management
 - Токен: 48 байт urlsafe (`secrets.token_urlsafe(48)`)
 - TTL: налаштовуваний (за замовч. 8 год)
-- Очистка прострочених: `cleanup_expired_sessions()`
+- Старі сесії користувача видаляються при новому логіні
 - Прив'язка до IP та User-Agent (лог)
 
 ### Дані отримувачів
@@ -121,6 +134,12 @@ amount, api_key_prefix, IP, час.
 6. Оновити клієнтів: замість `{receiver, iban, code, purpose, amount}`
    надсилати `{receiver_key, purpose, amount}`
 7. Видалити ADMIN_INIT_PASS з .env після першого входу
+
+## Нотатки по поточній реалізації
+
+- LiqPay налаштовується **на рівні отримувача** (`receivers`), а не через окрему універсальну адмінку провайдерів.
+- У `schema.sql` ще можуть лишатися таблиці/сліди раннього generic provider layer для сумісності з попередніми ітераціями, але активний runtime flow працює через receiver-level LiqPay config.
+- Inline JS у `admin.html`, `manager.html` і частково у `templates.py` ще не винесений у static-файли; це окремий майбутній cleanup/security етап.
 
 ## Приклад запиту /generate (v4.0)
 

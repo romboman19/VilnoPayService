@@ -214,6 +214,15 @@ Server-to-server callback від LiqPay. Верифікація підпису +
 | Призначення max 420 символів | ✅ |
 | Max 507 байт | ✅ |
 
+## Known limitations / deployment notes
+
+- Це **self-hosted payment link service**, а не повноцінний PSP або бухгалтерська система.
+- Поточний runtime flow LiqPay працює через **налаштування на рівні отримувача**.
+- У репозиторії ще можуть бути історичні артефакти ранньої generic-provider моделі в schema/docs для сумісності.
+- Inline JS у web-інтерфейсах ще не винесений повністю у static-файли; це окремий майбутній cleanup/security крок.
+- `ALLOWED_HOSTS=*` зручно для локального запуску, але для production краще явно вказати свій домен.
+- `LIQPAY_CALLBACK_IPS` бажано налаштувати в production як додатковий шар захисту поверх signature verification.
+
 ## Ліцензія
 
 AGPL-3.0 — див. [LICENSE](LICENSE) або https://www.gnu.org/licenses/agpl-3.0.html
