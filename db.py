@@ -296,7 +296,7 @@ def revoke_api_key(key_id: int):
 def create_receiver(name, receiver, iban, edrpou,
                   liqpay_public_key="", liqpay_private_key="", liqpay_display_mode="",
                   liqpay_pay_methods='["card","privat24","wallet"]', liqpay_sandbox=False) -> dict:
-    receiver_key = f"rcv_{secrets.token_urlsafe(8)}"
+    receiver_key = f"rcv_{secrets.token_hex(8)}"
     enc = encrypt_private_key(liqpay_private_key) if liqpay_private_key else ""
     pg_execute(
         """INSERT INTO receivers (receiver_key, name, receiver, iban, edrpou,

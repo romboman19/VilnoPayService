@@ -156,11 +156,26 @@ def _require_role(request: Request, role: str) -> dict:
         raise HTTPException(403, "Недостатньо прав")
     return session
 
+def _normalize_payment_text(value: str) -> str:
+    if value is None:
+        return ""
+    return (
+        value.replace("\u2019", "'")
+        .replace("\u02bc", "'")
+        .replace("\u2018", "'")
+        .replace("`", "'")
+        .strip()
+    )
+
+
 def build_open_data(receiver, iban, code, purpose, amount):
     iban = iban.replace(" ", "").strip()
+    receiver = _normalize_payment_text(receiver)
+    purpose = _normalize_payment_text(purpose)
+    code = _normalize_payment_text(code)
     amt = f"UAH{amount.strip().replace(',', '.')}" if amount else ""
-    return "\n".join(["BCD","002","2","UCT","",receiver.strip(),iban,
-                      amt,code.strip(),"","",purpose.strip(),""]) + "\n"
+    return "\n".join(["BCD","002","2","UCT","",receiver,iban,
+                      amt,code,"","",purpose,""]) + "\n"
 
 def to_nbu_token(open_data):
     raw = open_data.encode("cp1251", errors="strict")
@@ -236,7 +251,7 @@ class GenerateRequest(BaseModel):
     @field_validator("purpose")
     @classmethod
     def val_p(cls, v):
-        v = v.strip()
+        v = _normalize_payment_text(v)
         if len(v) < 2 or len(v) > 420: raise ValueError("Призначення: 2-420 символів")
         if re.search(r"[<>]", v): raise ValueError("Заборонені символи")
         return v
@@ -713,7 +728,7 @@ def manager_delete_template(request: Request, template_id: int):
 def manager_create_payment(request: Request, body: dict):
     session = _require_manager(request)
     receiver_key = body.get("receiver_key", "").strip()
-    purpose = body.get("purpose", "").strip()
+    purpose = _normalize_payment_text(body.get("purpose", ""))
     amount = body.get("amount", "").strip() or None
     if not receiver_key or not purpose:
         raise HTTPException(400, "Отримувач і призначення обов'язкові")
