@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS payment_links_log (
 );
 CREATE INDEX idx_payment_links_created ON payment_links_log(created_at);
 CREATE INDEX idx_payment_links_receiver ON payment_links_log(receiver_key);
+CREATE INDEX idx_payment_links_link ON payment_links_log(link_id);
 
 -- ── Лог переглядів сторінок клієнтами ───────────────────────
 CREATE TABLE IF NOT EXISTS page_views_log (
