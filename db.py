@@ -173,6 +173,8 @@ def _migrate():
         "CREATE INDEX IF NOT EXISTS idx_liqpay_tx_status ON liqpay_transactions(status)",
         # block_order setting
         "INSERT INTO settings (key, value) VALUES ('block_order', '[\"nbu_qr\",\"liqpay\",\"requisites\"]') ON CONFLICT (key) DO NOTHING",
+        # довжина ID платіжного посилання
+        "INSERT INTO settings (key, value) VALUES ('link_id_length', '16') ON CONFLICT (key) DO NOTHING",
     ]
     for sql in migrations:
         try:
@@ -202,6 +204,15 @@ def get_link_ttl() -> int:
         return int(s.get("link_ttl_hours", "24"))
     except (ValueError, TypeError):
         return 24
+
+
+def get_link_id_length() -> int:
+    """Довжина ID посилання /p/{link_id}: 6..32, за замовчуванням 16."""
+    s = get_settings()
+    try:
+        return min(max(int(s.get("link_id_length", "16")), 6), 32)
+    except (ValueError, TypeError):
+        return 16
 
 
 # ── API Keys ─────────────────────────────────────────────────

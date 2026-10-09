@@ -42,7 +42,7 @@ HTTP-only cookie-сесії. TTL = SESSION_TTL_HOURS (за замовч. 8 го�
 Key-value сховище брендингу:
 - `logo_url`, `bg_color`, `primary_color`, `accent_color`
 - `page_title`, `page_subtitle`, `footer_text`
-- `link_ttl_hours`, `custom_css`
+- `link_ttl_hours`, `link_id_length`, `custom_css`
 
 ### receivers
 Отримувачі платежів. Кожен має унікальний `receiver_key` (формат `rcv_xxxxx`).
