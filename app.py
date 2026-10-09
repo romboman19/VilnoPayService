@@ -228,8 +228,17 @@ def _new_link_id():
     length = get_link_id_length()
     for _ in range(10):
         lid = "".join(secrets.choice(_LINK_ID_ALPHABET) for _ in range(length))
-        if not rdb.exists(f"pay:{lid}"):
-            return lid
+        # Атомарний резерв: паралельний запит не отримає той самий ID
+        if not rdb.set(f"linkid_lock:{lid}", "1", nx=True, ex=300):
+            continue
+        # ID не повторюється ніколи: ні серед живих, ні серед прострочених посилань
+        # (аудит-лог, page views і LiqPay-транзакції прив'язані до link_id)
+        if rdb.exists(f"pay:{lid}", f"liqpay_paid:{lid}") or pg_query(
+                "SELECT 1 FROM payment_links_log WHERE link_id = %s "
+                "UNION ALL SELECT 1 FROM liqpay_transactions WHERE link_id = %s LIMIT 1",
+                (lid, lid), fetchone=True):
+            continue
+        return lid
     raise HTTPException(503, "Не вдалося згенерувати унікальне посилання, збільште link_id_length")
 
 def _validate_link_id(lid):
