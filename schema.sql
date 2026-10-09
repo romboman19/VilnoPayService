@@ -32,7 +32,7 @@ CREATE INDEX idx_admin_sessions_expires ON admin_sessions(expires_at);
 -- ── Налаштування брендингу (key-value) ──────────────────────
 -- Ключі: logo_filename, bg_color, primary_color, accent_color,
 --         page_title, page_subtitle, footer_text,
---         link_ttl_hours, custom_css
+--         link_ttl_hours, link_id_length, custom_css
 CREATE TABLE IF NOT EXISTS settings (
     id              SERIAL PRIMARY KEY,
     key             VARCHAR(100) UNIQUE NOT NULL,
@@ -57,6 +57,7 @@ INSERT INTO settings (key, value) VALUES
     ('page_subtitle',  'Безпечна оплата переказом'),
     ('footer_text',    'VilnoPayService · Захищено'),
     ('link_ttl_hours', '24'),
+    ('link_id_length', '16'),
     ('custom_css',     '')
 ON CONFLICT (key) DO NOTHING;
 

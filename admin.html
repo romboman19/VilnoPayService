@@ -181,6 +181,7 @@ th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;le
 <div class="fg"><label>Підзаголовок</label><input id="s-page_subtitle"></div>
 <div class="fg"><label>Футер</label><input id="s-footer_text"></div>
 <div class="fg"><label>TTL посилань (год)</label><input id="s-link_ttl_hours" type="number" min="1" max="720"></div>
+<div class="fg"><label>Довжина ID посилання (символів, 6–32)</label><input id="s-link_id_length" type="number" min="6" max="32" placeholder="16"></div>
 <div class="fg"><label>CSS</label><textarea id="s-custom_css" rows="3"></textarea></div>
 <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)"><label style="font-weight:600">Безпека доступу</label></div>
 <div class="fg"><label>Allowed IPs для адмінки</label><textarea id="s-admin_allowed_ips" rows="3" placeholder="1.2.3.4, 5.6.7.0/24&#10;Порожньо = без обмежень"></textarea></div>
@@ -357,7 +358,7 @@ async function delRcv(key){
 async function loadBrand(){
   try{
     const s=await api('GET','/admin/settings');
-    const keys=['logo_filename','bg_color','primary_color','accent_color','text_color','card_color','border_color','font_family','font_size','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
+    const keys=['logo_filename','bg_color','primary_color','accent_color','text_color','card_color','border_color','font_family','font_size','page_title','page_subtitle','footer_text','link_ttl_hours','link_id_length','custom_css'];
     for(const k of keys){
       const el=E('s-'+k);
       if(el&&s[k]!==undefined){
@@ -375,7 +376,7 @@ async function loadBrand(){
   }catch(e){}
 }
 async function saveBrand(){
-  const keys=['logo_filename','bg_color','primary_color','accent_color','text_color','card_color','border_color','font_family','font_size','page_title','page_subtitle','footer_text','link_ttl_hours','custom_css'];
+  const keys=['logo_filename','bg_color','primary_color','accent_color','text_color','card_color','border_color','font_family','font_size','page_title','page_subtitle','footer_text','link_ttl_hours','link_id_length','custom_css'];
   const settings={};for(const k of keys){
     const el=E('s-'+k);if(el)settings[k]=el.value;
   }

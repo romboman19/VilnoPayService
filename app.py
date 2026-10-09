@@ -20,7 +20,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from db import (
     init_db, pg_query, pg_execute,
-    get_settings, update_settings, get_link_ttl,
+    get_settings, update_settings, get_link_ttl, get_link_id_length,
     validate_api_key, create_api_key, list_api_keys, update_api_key_allowed_ips, revoke_api_key,
     ip_matches_allowlist, _parse_allowed_ips,
     create_receiver, get_receiver_by_key, list_receivers,
@@ -221,8 +221,19 @@ def _add_hryvnia_sign(qr_img):
     draw.text((tx, ty), text, fill=(0, 0, 0, 255), font=font)
     return img.convert("RGB")
 
+_LINK_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+
+def _new_link_id():
+    """Генерує унікальний link_id довжиною з налаштувань (link_id_length)."""
+    length = get_link_id_length()
+    for _ in range(10):
+        lid = "".join(secrets.choice(_LINK_ID_ALPHABET) for _ in range(length))
+        if not rdb.exists(f"pay:{lid}"):
+            return lid
+    raise HTTPException(503, "Не вдалося згенерувати унікальне посилання, збільште link_id_length")
+
 def _validate_link_id(lid):
-    if not re.match(r"^[A-Za-z0-9_-]{8,32}$", lid):
+    if not re.match(r"^[A-Za-z0-9_-]{6,32}$", lid):
         raise HTTPException(400, "Invalid link ID")
     return lid
 
@@ -433,9 +444,17 @@ def admin_update_settings(request: Request, body: SettingsUpdate):
     _require_role(request, "admin")
     allowed = {"logo_filename","bg_color","primary_color","accent_color",
                "text_color","card_color","border_color","font_family","font_size",
-               "page_title","page_subtitle","footer_text","link_ttl_hours","custom_css","block_order",
+               "page_title","page_subtitle","footer_text","link_ttl_hours","link_id_length","custom_css","block_order",
                "admin_allowed_ips","manager_allowed_ips"}
     filtered = {k: v for k, v in body.settings.items() if k in allowed}
+    if "link_id_length" in filtered:
+        try:
+            n = int(filtered["link_id_length"] or 16)
+        except (ValueError, TypeError):
+            raise HTTPException(400, "link_id_length: має бути числом")
+        if not 6 <= n <= 32:
+            raise HTTPException(400, "link_id_length: від 6 до 32 символів")
+        filtered["link_id_length"] = str(n)
     if "custom_css" in filtered:
         css = filtered["custom_css"]
         if len(css) > 4000:
@@ -633,7 +652,7 @@ def track_bank_click(request: Request, body: dict):
     }
     link_id = body.get("link_id", "").strip()
     bank = body.get("bank", "").strip().lower()
-    if not link_id or not re.match(r"^[A-Za-z0-9_-]{8,32}$", link_id):
+    if not link_id or not re.match(r"^[A-Za-z0-9_-]{6,32}$", link_id):
         return {"ok": False}
     if bank not in ALLOWED_BANKS:
         return {"ok": False}
@@ -739,7 +758,7 @@ def manager_create_payment(request: Request, body: dict):
     open_data = build_open_data(rcv["receiver"], rcv["iban"], rcv["edrpou"], purpose, amount)
     nbu_token = to_nbu_token(open_data)
     nbu_url = f"https://bank.gov.ua/qr/{nbu_token}"
-    link_id = secrets.token_urlsafe(12)
+    link_id = _new_link_id()
     pay_url = f"{BASE_URL}/p/{link_id}"
     ttl = get_link_ttl()
     invoice_id = body.get("invoice_id", "").strip() or None
@@ -1063,7 +1082,7 @@ def generate(request: Request, req: GenerateRequest,
         open_data = build_open_data(receiver, iban, code, req.purpose, req.amount)
         nbu_token = to_nbu_token(open_data)
         nbu_url = f"https://bank.gov.ua/qr/{nbu_token}"
-        link_id = secrets.token_urlsafe(12)
+        link_id = _new_link_id()
         pay_url = f"{BASE_URL}/p/{link_id}"
         ttl = get_link_ttl()
 
